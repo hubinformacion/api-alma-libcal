@@ -1,0 +1,216 @@
+import json
+import os
+import tempfile
+import unittest
+from datetime import date
+from pathlib import Path
+from unittest.mock import patch
+from xml.sax.saxutils import escape
+
+from alma_libcal.connectors.alma import AlmaConnector, date_filter, parse_page
+from alma_libcal.connectors.libcal import LibCalConnector
+from alma_libcal.demo import DemoHTTP, demo_config, fixture
+from alma_libcal.errors import ConfigError, SourceError
+from alma_libcal.models import Interval, local_date, quantity
+
+
+def xml_page(rows="", finished="true", token="", *, encoded=False):
+    rowset = '<rowset xmlns="urn:schemas-microsoft-com:xml-analysis:rowset">' + rows + '</rowset>'
+    if encoded:
+        rowset = escape(rowset)
+    return (f"<report><QueryResult><IsFinished>{finished}</IsFinished><ResumptionToken>{token}</ResumptionToken>"
+            f"<ResultXml>{rowset}</ResultXml></QueryResult></report>").encode()
+
+
+class QueueHTTP:
+    def __init__(self, responses):
+        self.responses = iter(responses)
+        self.calls = []
+
+    def request(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs))
+        result = next(self.responses)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def json(self, method, url, **kwargs):
+        return self.request(method, url, **kwargs)
+
+
+class ConnectorTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.config = demo_config(Path(self.temp.name))
+        self.interval = Interval(date(2026, 10, 6), date(2026, 10, 6))
+        env = patch.dict(os.environ, {"DEMO_ALMA_KEY": "private-test-key", "DEMO_LIBCAL_ID": "private-test-id", "DEMO_LIBCAL_SECRET": "private-test-secret"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def test_alma_follows_token_and_keeps_missing_user(self):
+        http = QueueHTTP([fixture("alma_loans_page1.xml").encode(), fixture("alma_loans_page2.xml").encode()])
+        batch = AlmaConnector(self.config, http, "prestamos").fetch(self.interval)
+        self.assertEqual(len(batch.records), 2)
+        self.assertEqual(batch.records[0].user_id, "000123")
+        self.assertEqual(batch.records[1].user_id, "")
+        second_params = http.calls[1][2]["params"]
+        self.assertNotIn("path", second_params)
+        self.assertNotIn("filter", second_params)
+        self.assertEqual(second_params["token"], "demo-shared-token")
+        self.assertTrue(http.calls[0][2]["retry"])
+        self.assertFalse(http.calls[1][2]["retry"])
+        self.assertTrue(batch.source_updated_at)
+
+    def test_alma_same_token_is_valid_across_multiple_pages(self):
+        row1 = '<Row><Column1>L1</Column1><Column2>2026-10-06</Column2></Row>'
+        row2 = row1.replace("L1", "L2")
+        http = QueueHTTP([xml_page(row1, "false", "same-token"), xml_page(row2, "false"), xml_page()])
+        batch = AlmaConnector(self.config, http, "prestamos").fetch(self.interval)
+        self.assertEqual(len(batch.records), 2)
+        self.assertEqual(http.calls[1][2]["params"]["token"], http.calls[2][2]["params"]["token"])
+
+    def test_alma_renewals_preserve_daily_quantity(self):
+        batch = AlmaConnector(self.config, DemoHTTP(), "renovaciones").fetch(self.interval)
+        self.assertEqual(batch.records[0].quantity, 2)
+        self.assertEqual(batch.records[0].record_id, "LOAN-001:2026-10-06")
+
+    def test_alma_renewal_of_older_loan_is_included(self):
+        row = '<Row><Column1>OLD-LOAN</Column1><Column2>2026-10-06</Column2><Column10>1</Column10></Row>'
+        batch = AlmaConnector(self.config, QueueHTTP([xml_page(row)]), "renovaciones").fetch(self.interval)
+        self.assertEqual(batch.records[0].record_id, "OLD-LOAN:2026-10-06")
+
+    def test_alma_repeated_page_fails(self):
+        response = fixture("alma_loans_page1.xml").encode()
+        with self.assertRaisesRegex(SourceError, "repitió"):
+            AlmaConnector(self.config, QueueHTTP([response, response]), "prestamos").fetch(self.interval)
+
+    def test_alma_missing_token_fails(self):
+        row = '<Row><Column1>L1</Column1><Column2>2026-10-06</Column2></Row>'
+        with self.assertRaisesRegex(SourceError, "token"):
+            AlmaConnector(self.config, QueueHTTP([xml_page(row, "false")]), "prestamos").fetch(self.interval)
+
+    def test_alma_duplicate_keys_fail_instead_of_losing_counts(self):
+        row = '<Row><Column1>L1</Column1><Column2>2026-10-06</Column2></Row>'
+        with self.assertRaisesRegex(SourceError, "duplicadas"):
+            AlmaConnector(self.config, QueueHTTP([xml_page(row + row)]), "prestamos").fetch(self.interval)
+
+    def test_alma_max_pages_fails_without_silent_truncation(self):
+        self.config.raw["alma"]["max_pages"] = 1
+        with self.assertRaisesRegex(SourceError, "max_pages"):
+            AlmaConnector(self.config, QueueHTTP([fixture("alma_loans_page1.xml").encode()]), "prestamos").fetch(self.interval)
+
+    def test_xml_empty_report_and_encoded_rowset(self):
+        self.assertEqual(parse_page(xml_page())[0], [])
+        rows, finished, _ = parse_page(xml_page('<Row><Column1>000123</Column1></Row>', encoded=True))
+        self.assertEqual(rows[0]["Column1"], "000123")
+        self.assertTrue(finished)
+
+    def test_xml_malformed_error_and_entity_declarations_fail(self):
+        for xml in (b"<bad", b"<report><errorList/></report>", b'<!DOCTYPE report [<!ENTITY secret "hidden">]><report/>',
+                    b"<report><QueryResult><IsFinished>true</IsFinished></QueryResult></report>"):
+            with self.subTest(xml=xml), self.assertRaises(SourceError):
+                parse_page(xml)
+
+    def test_alma_schema_inspection_does_not_expose_values(self):
+        raw = xml_page('<Row><Column1>private-user</Column1></Row>')
+        result = AlmaConnector(self.config, QueueHTTP([raw]), "prestamos").inspect(self.interval)
+        self.assertEqual(result, [{"column": "Column1", "heading": "", "type": ""}])
+        self.assertNotIn("private-user", repr(result))
+
+    def test_date_filter_escapes_column_and_uses_requested_interval(self):
+        expression = date_filter('"Dates"."A & B"', self.interval)
+        self.assertIn("A &amp; B", expression)
+        self.assertIn("2026-10-06", expression)
+
+    def test_libcal_all_categories_cancelled_and_missing_checkin(self):
+        batch = LibCalConnector(self.config, DemoHTTP()).fetch(self.interval)
+        self.assertEqual(len(batch.records), 3)
+        self.assertEqual({record.category for record in batch.records}, {"Computadoras y laptops", "Espacios grupales", "Kindle"})
+        self.assertEqual(batch.records[1].status, "Cancelled")
+        self.assertEqual(batch.records[1].check_in, "")
+
+    def test_libcal_offset_uses_actual_server_page_size(self):
+        rows = json.loads(fixture("libcal_bookings.json"))
+        first = rows[0]
+        second = {**first, "bookId": "SECOND"}
+        http = QueueHTTP([{"access_token": "test"}, [first], [second], [], [], []])
+        batch = LibCalConnector(self.config, http).fetch(self.interval)
+        self.assertEqual(len(batch.records), 2)
+        self.assertEqual(http.calls[2][2]["params"]["offset"], "1")
+        self.assertEqual(http.calls[3][2]["params"]["offset"], "2")
+
+    def test_libcal_page_pagination_and_wrapped_results(self):
+        settings = self.config.raw["libcal"]
+        settings["pagination"] = "page"
+        settings["response_path"] = "data.bookings"
+        settings["query"].pop("offset")
+        settings["query"]["page"] = "{page}"
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        wrap = lambda rows: {"data": {"bookings": rows}}
+        http = QueueHTTP([{"access_token": "test"}, wrap([first]), wrap([]), wrap([]), wrap([])])
+        batch = LibCalConnector(self.config, http).fetch(self.interval)
+        self.assertEqual(len(batch.records), 1)
+        self.assertEqual(http.calls[2][2]["params"]["page"], "2")
+
+    def test_libcal_incomplete_last_category_aborts_whole_batch(self):
+        rows = json.loads(fixture("libcal_bookings.json"))
+        http = QueueHTTP([{"access_token": "test"}, [rows[0]], [], [rows[1]], [], SourceError("third category unavailable")])
+        with self.assertRaises(SourceError):
+            LibCalConnector(self.config, http).fetch(self.interval)
+
+    def test_libcal_repeated_page_is_not_silently_complete(self):
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        http = QueueHTTP([{"access_token": "test"}, [first], [first]])
+        with self.assertRaisesRegex(SourceError, "repitió"):
+            LibCalConnector(self.config, http).fetch(self.interval)
+
+    def test_libcal_malformed_and_error_responses_fail(self):
+        for response in ({"unexpected": []}, {"error": "private detail"}, ["not a row"]):
+            with self.subTest(response=response), self.assertRaises(SourceError):
+                LibCalConnector(self.config, QueueHTTP([{"access_token": "test"}, response])).fetch(self.interval)
+
+    def test_libcal_nested_user_field_and_leading_zeros(self):
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        first["answers"] = [{"value": "000009"}]
+        fields = {**self.config.raw["libcal"]["fields"], "user_id": "answers.0.value"}
+        record = LibCalConnector(self.config, DemoHTTP()).normalize(first, fields, {"id": "101", "name": "Computadoras y laptops"})
+        self.assertEqual(record.user_id, "000009")
+
+    def test_libcal_category_mismatch_fails(self):
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        fields = {**self.config.raw["libcal"]["fields"], "category_id": "cid"}
+        with self.assertRaisesRegex(SourceError, "otra categoría"):
+            LibCalConnector(self.config, DemoHTTP()).normalize(first, fields, {"id": "102", "name": "Espacios grupales"})
+
+    def test_libcal_timezone_and_end_before_start(self):
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        first["fromDate"] = "2026-10-07T01:00:00Z"
+        first["toDate"] = "2026-10-07T02:00:00Z"
+        connector = LibCalConnector(self.config, DemoHTTP())
+        category = {"id": "101", "name": "Computadoras y laptops"}
+        record = connector.normalize(first, self.config.raw["libcal"]["fields"], category)
+        self.assertEqual(record.activity_date, "2026-10-06")
+        first["toDate"] = "2026-10-07T00:00:00Z"
+        with self.assertRaises(SourceError):
+            connector.normalize(first, self.config.raw["libcal"]["fields"], category)
+
+    def test_placeholder_configuration_fails_without_network(self):
+        self.config.raw["libcal"]["fields"]["user_id"] = "REPLACE_USER_CODE_FIELD"
+        http = QueueHTTP([])
+        with self.assertRaises(ConfigError):
+            LibCalConnector(self.config, http).fetch(self.interval)
+        self.assertEqual(http.calls, [])
+
+    def test_missing_secret_fails_without_network(self):
+        with patch.dict(os.environ, {"DEMO_ALMA_KEY": ""}), self.assertRaises(ConfigError):
+            AlmaConnector(self.config, QueueHTTP([]), "prestamos").fetch(self.interval)
+
+    def test_quantity_and_dates_validate(self):
+        self.assertEqual(quantity("2.0"), 2)
+        for value in ("-1", "1.5", "NaN", "Infinity", "not-a-number"):
+            with self.subTest(value=value), self.assertRaises(SourceError):
+                quantity(value)
+        self.assertEqual(local_date("2026-10-07T01:00:00Z", "America/Lima"), "2026-10-06")
+        with self.assertRaises(SourceError):
+            local_date("06/10/2026", "America/Lima")

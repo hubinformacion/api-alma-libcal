@@ -1,0 +1,5 @@
+[
+  {"bookId": "BOOK-001", "cid": "101", "institutionalId": "000123", "eid": "PC-01", "itemName": "Computadora de prueba", "locationName": "Biblioteca de prueba", "fromDate": "2026-10-06T09:00:00-05:00", "toDate": "2026-10-06T10:00:00-05:00", "status": "Confirmed", "checkIn": "2026-10-06T09:02:00-05:00", "checkOut": "2026-10-06T09:58:00-05:00"},
+  {"bookId": "BOOK-002", "cid": "102", "institutionalId": "000456", "eid": "ROOM-01", "itemName": "Sala de prueba", "locationName": "Biblioteca de prueba", "fromDate": "2026-10-06T10:00:00-05:00", "toDate": "2026-10-06T11:00:00-05:00", "status": "Cancelled"},
+  {"bookId": "BOOK-003", "cid": "103", "institutionalId": "000123", "eid": "KINDLE-01", "itemName": "Kindle de prueba", "locationName": "Biblioteca de prueba", "fromDate": "2026-10-06T11:00:00-05:00", "toDate": "2026-10-06T12:00:00-05:00", "status": "Confirmed"}
+]

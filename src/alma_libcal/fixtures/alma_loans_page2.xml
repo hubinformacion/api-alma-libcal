@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report><QueryResult><IsFinished>true</IsFinished>
+<ResultXml><rowset xmlns="urn:schemas-microsoft-com:xml-analysis:rowset">
+<Row><Column1>LOAN-002</Column1><Column2>2026-10-06</Column2><Column3/><Column4>ITEM-002</Column4><Column5>Libro ficticio B</Column5><Column6>Biblioteca de prueba</Column6><Column7>Complete</Column7><Column8>2026-10-06T23:00:00-05:00</Column8><Column9>2026-10-07T06:00:00-05:00</Column9></Row>
+</rowset></ResultXml></QueryResult></report>

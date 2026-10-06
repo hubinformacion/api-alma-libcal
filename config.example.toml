@@ -1,0 +1,99 @@
+# Copy to config.toml. All file paths are relative to this configuration file.
+[project]
+timezone = "America/Lima"
+start_date = "2026-10-06"
+database = "data/pilot.sqlite3"
+
+[alma]
+# Choose the API host for your institutional region (NA, EU, AP, etc.).
+base_url = "https://api-na.hosted.exlibrisgroup.com"
+api_key_env = "ALMA_API_KEY"
+page_size = 1000
+max_pages = 10000
+
+[alma.prestamos]
+report_path = "/shared/REPLACE_INSTITUTION/Pilot/Loans"
+date_column = '"Loan Date"."Loan Date"'
+# Column positions below are EXAMPLES: inspect the actual API XML.
+# API column order is not the UI column order. Map loan/user IDs as text.
+[alma.prestamos.fields]
+loan_id = "Column1"
+activity_date = "Column2"
+user_id = "Column3"
+resource_id = "Column4"
+resource_name = "Column5"
+site = "Column6"
+status = "Column7"
+source_updated_at = "Column8"
+source_available_at = "Column9"
+
+[alma.renovaciones]
+report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
+date_column = '"Renewal Date"."Renewal Date"'
+[alma.renovaciones.fields]
+loan_id = "Column1"
+activity_date = "Column2"
+user_id = "Column3"
+resource_id = "Column4"
+resource_name = "Column5"
+site = "Column6"
+status = "Column7"
+source_updated_at = "Column8"
+source_available_at = "Column9"
+quantity = "Column10"
+
+[libcal]
+base_url = "https://REPLACE_INSTITUTION.libcal.com"
+token_path = "/1.1/oauth/token"
+bookings_path = "/1.1/space/bookings"
+client_id_env = "LIBCAL_CLIENT_ID"
+client_secret_env = "LIBCAL_CLIENT_SECRET"
+# Check all parameters against Admin → API. These are an editable template,
+# NOT a verified contract for your instance. Include cancelled records there.
+response_path = "" # Empty for root arrays; e.g. "bookings" for wrapped responses.
+pagination = "offset" # offset, page, or none (only if API returns ALL records).
+page_start = 1
+page_size = 100
+window_days = 1
+max_pages = 10000
+
+[libcal.query]
+date = "{date}"
+days = "{days}"
+cid = "{category_id}"
+limit = "{limit}"
+offset = "{offset}"
+# For page pagination use page = "{page}" instead of offset.
+# If the API takes an end date, use its parameter name with "{end_date}".
+# Add documented static parameters here if required to include cancellations.
+
+[libcal.fields]
+booking_id = "bookId"
+starts_at = "fromDate"
+ends_at = "toDate"
+resource_id = "eid"
+resource_name = "itemName"
+site = "locationName"
+status = "status"
+# Optional if the response includes category ID; enables filter verification.
+# category_id = "cid"
+# Configure the actual institutional code field, not an email fallback.
+# Dotted paths support nested objects and array indices, e.g. answers.0.value.
+user_id = "REPLACE_USER_CODE_FIELD"
+check_in = "" # Map only if an ISO timestamp is available.
+check_out = ""
+
+[[libcal.categories]]
+id = "REPLACE_COMPUTERS_CATEGORY_ID"
+name = "Computadoras y laptops"
+[[libcal.categories]]
+id = "REPLACE_GROUP_SPACES_CATEGORY_ID"
+name = "Espacios grupales"
+[[libcal.categories]]
+id = "REPLACE_KINDLE_CATEGORY_ID"
+name = "Kindle"
+
+[google]
+spreadsheet_id = "REPLACE_SPREADSHEET_ID"
+client_file = "secrets/google-client.json"
+token_file = "secrets/google-token.json"

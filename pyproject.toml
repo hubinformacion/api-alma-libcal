@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alma-libcal"
+version = "0.1.0"
+description = "Manual Alma Analytics and LibCal extraction to SQLite and Google Sheets"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+google = ["google-auth>=2.29,<3", "google-auth-oauthlib>=1.2,<2", "requests>=2.32,<3"]
+
+[project.scripts]
+alma-libcal = "alma_libcal.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+alma_libcal = ["fixtures/*.xml", "fixtures/*.json"]
