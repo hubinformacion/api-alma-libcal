@@ -206,6 +206,28 @@ location_name = "Campus Ica"
 source_name = "Computadoras y Laptops"
 form_id = "8254"
 
+# Formularios verificados: metadatos para la ampliación del extractor.
+# No asignan todavía booking_form_answer_1 ni booking_form_answer_2.
+[libcal.forms."8253"]
+name = "Espacios grupales"
+[libcal.forms."8253".fields]
+fname = "First Name"
+lname = "Last Name"
+email = "Email"
+q25458 = "Número de celular"
+q25536 = "Términos y Condiciones"
+q25459 = "Correo del integrante 2"
+q25460 = "Correo del integrante 3"
+
+[libcal.forms."8254"]
+name = "Computadoras y Laptops"
+[libcal.forms."8254".fields]
+fname = "First Name"
+lname = "Last Name"
+email = "Email"
+q25458 = "Número de celular"
+q25536 = "Términos y Condiciones"
+
 [google]
 spreadsheet_id = "REPLACE_SPREADSHEET_ID"
 client_file = "secrets/google-client.json"

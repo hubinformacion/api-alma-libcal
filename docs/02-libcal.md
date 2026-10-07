@@ -19,26 +19,29 @@ Los nombres Computadoras y Computadoras y Laptops se agrupan como **Computadoras
 
 No necesitas volver a buscar ni introducir estos IDs. Los campos `location_name`, `source_name` y `form_id` del TOML conservan metadatos para la ampliación; el extractor básico todavía no exporta todos ellos.
 
-## 2. Recursos y formularios
+## 2. Formularios confirmados; excepción de Los Olivos pendiente
 
-Consulta los recursos de Espacios grupales de Cusco:
+Ambos formularios ya fueron consultados y sus campos quedaron registrados en `[libcal.forms]` del TOML como metadatos de referencia:
+
+| Campo | Pregunta | Formulario 8253 (salas) | Formulario 8254 (computadoras/Kindle) |
+| --- | --- | --- | --- |
+| `fname`, `lname`, `email` | Nombre, apellido y correo del solicitante | Sí | Sí |
+| `q25458` | Número de celular | Sí | Sí |
+| `q25459` | Correo del integrante 2 | Sí | No |
+| `q25460` | Correo del integrante 3 | Sí | No |
+| `q25536` | Términos y Condiciones, opción Acepto | Sí | Sí |
+
+No hay una pregunta de DNI en estos formularios. La persona que reserva se identifica por el correo de la reserva; los correos de integrantes adicionales son campos distintos. Una reserva grupal sigue siendo una operación, aunque participen varias personas.
+
+Falta confirmar qué dos preguntas corresponden a tus columnas `booking_form_answer_1` y `booking_form_answer_2`. Para salas, la propuesta es usar los correos de integrantes 2 y 3; aún no se ha aplicado esa asignación. En computadoras/Kindle esas preguntas no existen: no rellenaremos las mismas columnas con otros significados sin definirlo antes.
+
+Computadoras de Los Olivos devuelve `formid = 0`. Consulta sus recursos para verificar si informan un formulario específico:
 
 ```bash
-.venv/bin/python -m alma_libcal discover-libcal --category 42372
+.venv/bin/python -m alma_libcal discover-libcal --category 42375
 ```
 
-Consulta `/1.1/space/category/{cid}` con detalles y muestra `items`: cada recurso tiene `id` y `name`. No necesitas copiar todos los recursos al TOML para extraer una categoría completa.
-
-Los espacios grupales usan el formulario **8253**; computadoras y Kindle informan **8254**, salvo computadoras de Los Olivos, que devuelve **formid = 0**. Consulta ambos formularios:
-
-```bash
-.venv/bin/python -m alma_libcal discover-libcal --form 8253
-.venv/bin/python -m alma_libcal discover-libcal --form 8254
-```
-
-Para Los Olivos, revisa los recursos con `discover-libcal --category 42375` y su posible `formid`. El valor 0 en la categoría no demuestra que las reservas carezcan de preguntas; no lo consultes como un formulario válido.
-
-Consulta `/1.1/space/form/{formid}`. En `fields`, las preguntas personalizadas se identifican como `q43`, `q44`, etc.; estos números son ejemplos. Verifica sus etiquetas antes de decidir qué corresponde a `booking_form_answer_1` y `booking_form_answer_2`. Los formularios pueden variar entre categorías o recursos.
+El 0 de la categoría no demuestra que las reservas carezcan de preguntas; no lo consultes como un formulario válido. No hace falta volver a consultar 8253 y 8254.
 
 ## 3. Probar reservas sin mostrar usuarios
 
@@ -60,9 +63,9 @@ El comando consulta todas las páginas y muestra `authentication`, número de fi
 
 ## 4. Resolver campos e histórico
 
-Con los nombres de campos de la prueba y las preguntas del formulario, debemos confirmar:
+Con las preguntas ya identificadas, queda confirmar en la respuesta de reservas:
 
-- Qué preguntas corresponden a `booking_form_answer_1` y `booking_form_answer_2`, por categoría/recurso.
+- Que llegan `q25459` y `q25460` en salas con `form_answers=1`; definir su asignación a las dos columnas del reporte.
 - Si hay un identificador institucional real; hasta entonces `user_id` permanece vacío.
 - Qué significa `booking_confirmation` en tu reporte.
 - Si `account` contiene un correo: el YAML no lo define como tal.

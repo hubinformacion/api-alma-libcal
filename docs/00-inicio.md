@@ -7,20 +7,21 @@
 - Reporte `Loans`: IDs sin duplicados en el día revisado; inspección API con fechas y mapeo básico confirmados.
 - Reporte `Renewals`: columnas y mapeo básico confirmados, incluidos cantidad y campus de renovación.
 - LibCal: ubicaciones y 14 categorías de los seis campus configuradas, con IDs y formularios de referencia.
+- Formularios LibCal 8253 y 8254: preguntas identificadas y registradas; falta revisar la excepción de Los Olivos.
 - Google Sheets: configuración completada según tu confirmación.
 - Código y guías guardados en Git.
 
-Falta validar Renewals con fechas, identificar las preguntas de LibCal y comparar la extracción completa.
+Falta validar Renewals con fechas, confirmar respuestas de LibCal y su asignación al reporte, y comparar la extracción completa.
 
 ## Sigue este orden
 
 | Paso | Qué falta | Dónde hacerlo |
 | --- | --- | --- |
 | 01 | Validar el filtro de fecha de Renewals y completar el esquema de ambos reportes | [Alma](01-alma.md): Analytics, terminal y `config.toml` |
-| 02 | Consultar los dos formularios, identificar preguntas y comparar reservas de hoy | [LibCal](02-libcal.md): terminal y `config.toml` |
+| 02 | Probar reservas y sus campos; definir las dos respuestas del reporte y revisar Los Olivos | [LibCal](02-libcal.md): terminal y `config.toml` |
 | 03 | Ampliar el extractor, comprobar conteos y publicar una muestra en Google | [Validación y publicación](03-programa-y-sheets.md) |
 
-**El siguiente paso es consultar los formularios 8253 y 8254 de LibCal y probar reservas, siguiendo 02.** También queda validar el filtro de fecha de Renewals en 01. No recrees claves, reportes ni la autorización de Google.
+**El siguiente paso es probar reservas de espacios grupales y revisar los recursos de Los Olivos, siguiendo 02.** También queda validar el filtro de fecha de Renewals en 01. No recrees claves, reportes ni la autorización de Google.
 
 ## Después del piloto
 
