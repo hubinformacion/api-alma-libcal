@@ -8,24 +8,24 @@ La inspección con fechas devolvió las columnas del reporte. No hace falta repe
 
 | Campo | Columna API |
 | --- | --- |
-| ID del préstamo | Column11 |
-| Fecha | Column7 |
-| Identificador de usuario, fórmula actual | Column18 |
-| ID del ejemplar | Column10 |
-| Título | Column16 |
-| Campus / código de campus | Column2 / Column1 |
-| Estado | Column12 |
-| Indicador de uso interno | Column9 |
+| ID del préstamo | Column12 |
+| Fecha | Column8 |
+| Identificador original del usuario | Column1 |
+| ID del ejemplar | Column11 |
+| Título | Column17 |
+| Campus / código de campus | Column3 / Column2 |
+| Estado | Column13 |
+| Indicador de uso interno | Column10 |
 
-`Column0` es una columna auxiliar y no se importa. El reporte no entrega fechas de actualización; sus mapas se dejaron vacíos para evitar interpretar Barcode como una fecha.
+`Column0` es auxiliar y no se importa. El reporte no entrega fechas de actualización; esos mapas permanecen vacíos.
 
-## 2. Identidad y campos pendientes de almacenamiento
+## 2. Identidad original y campos pendientes de almacenamiento
 
-Las fórmulas de Column18 (identificador) y Column19 (correo) sustituyen el valor por «Uso interno» cuando el indicador es Y. El programa ya deja vacío el identificador ficticio de esos registros y conserva la clasificación por el indicador. No necesitas rehacer el reporte para continuar el piloto básico.
+El reporte ya entrega User Primary Identifier (Column1) y Preferred Email (Column19) sin CASE ni LOWER. El programa obtiene la clasificación de uso interno del indicador Y/N; no se sustituye la identidad por una etiqueta.
 
-Para el reporte completo preferimos identificador y correo originales, sin mezclar etiquetas ni aplicar LOWER al identificador. Cuando preparemos esa ampliación, revisaremos esas fórmulas. **Si cambias fórmulas o columnas, vuelve a inspeccionar antes de importar:** el orden de ColumnN puede cambiar.
+También quedaron identificados Barcode (Column9), Loan Time (Column14), Material Type (Column15), MMS Id (Column16), Item Policy (Column18), correo (Column19), Library Code (Column7) y el módulo (Column4–Column6). El extractor todavía debe ampliarse para almacenar todos esos campos; el mapeo actual corresponde al esquema básico implementado.
 
-También quedaron identificados Barcode (Column8), Loan Time (Column13), Material Type (Column14), MMS Id (Column15), Item Policy (Column17), correo (Column19) y el módulo (Column3–Column5). El extractor todavía debe ampliarse para almacenar todos esos campos; no basta con añadir entradas al TOML.
+**Si cambias columnas o fórmulas, vuelve a inspeccionar antes de importar:** el orden de ColumnN puede cambiar. Los atributos académicos y la identidad validada se completarán desde la universidad después.
 
 ## 3. Revisar renovaciones por campus
 
