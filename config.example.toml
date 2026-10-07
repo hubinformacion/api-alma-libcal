@@ -34,19 +34,18 @@ source_available_at = ""
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
 date_column = '"Renewal Date"."Renewal Date"'
 [alma.renovaciones.fields]
-# Map site to Renewal Circulation Desk -> Campus Name and site_id to Campus Code.
-# Example after inspection: site_id = "ColumnN" (replace N with the real index).
-# With site_id the key is loan/day/campus; without it the legacy key is loan/day.
-loan_id = "Column1"
-activity_date = "Column2"
-user_id = "Column3"
-resource_id = "Column4"
-resource_name = "Column5"
-site = "Column6"
-status = "Column7"
-source_updated_at = "Column8"
-source_available_at = "Column9"
-quantity = "Column10"
+# Mapeo verificado de Renewals; clave: préstamo + fecha + campus.
+loan_id = "Column4"
+activity_date = "Column13"
+user_id = "Column1"
+resource_id = "Column3"
+resource_name = "Column8"
+site = "Column12"
+site_id = "Column11"
+status = "Column5"
+quantity = "Column14"
+source_updated_at = ""
+source_available_at = ""
 
 [libcal]
 base_url = "https://REPLACE_INSTITUTION.libcal.com"

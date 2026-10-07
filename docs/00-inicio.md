@@ -5,21 +5,22 @@
 - Python 3.12.3 y dependencias locales.
 - Credenciales en `.env`, rutas y opciones en `config.toml`.
 - Reporte `Loans`: IDs sin duplicados en el día revisado; inspección API con fechas y mapeo básico confirmados.
+- Reporte `Renewals`: columnas y mapeo básico confirmados, incluidos cantidad y campus de renovación.
 - Acceso a ubicaciones de LibCal: recibimos los seis campus.
 - Google Sheets: configuración completada según tu confirmación.
-- Tres commits registrados con código, documentación y guías.
+- Código y guías guardados en Git.
 
-Falta comprobar Renewals y la extracción completa; los IDs de categorías LibCal todavía son ejemplos.
+Falta validar Renewals con fechas y comparar la extracción completa; los IDs de categorías LibCal todavía son ejemplos.
 
 ## Sigue este orden
 
 | Paso | Qué falta | Dónde hacerlo |
 | --- | --- | --- |
-| 01 | Inspeccionar Renewals, revisar sus campus y mapear columnas; completar el esquema de Loans | [Alma](01-alma.md): Analytics, terminal y `config.toml` |
+| 01 | Validar el filtro de fecha de Renewals y completar el esquema de ambos reportes | [Alma](01-alma.md): Analytics, terminal y `config.toml` |
 | 02 | Obtener los cid por campus, identificar preguntas y comparar reservas de hoy | [LibCal](02-libcal.md): terminal y `config.toml` |
 | 03 | Ampliar el extractor, comprobar conteos y publicar una muestra en Google | [Validación y publicación](03-programa-y-sheets.md) |
 
-**Tu siguiente paso es inspeccionar Renewals, siguiendo 01.** No recrees claves, reportes ni la autorización de Google.
+**El siguiente paso es obtener los cid de LibCal, siguiendo 02, y validar el filtro de fecha de Renewals en 01.** No recrees claves, reportes ni la autorización de Google.
 
 ## Después del piloto
 
