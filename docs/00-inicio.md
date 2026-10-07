@@ -1,40 +1,30 @@
-# 00 — Inicio y orden de trabajo
+# 00 — Estado y próximos pasos
 
-**Empieza por crear el reporte de préstamos en Alma Analytics.** No hace falta configurar claves, Google ni la base universitaria para realizar esa primera tarea.
+## Lo que ya está preparado
 
-## Qué hará el proyecto
+- Python 3.12.3 y dependencias locales.
+- Credenciales en `.env`, rutas y opciones en `config.toml`.
+- Reporte `Loans`: comprobaste que no se repite `loan_id` en el día revisado.
+- Acceso a ubicaciones de LibCal: recibimos los seis campus.
+- Google Sheets: configuración completada según tu confirmación.
+- Tres commits registrados con código, documentación y guías.
 
-Alma aporta préstamos y renovaciones; LibCal aporta reservas. El programa consultará esos sistemas y guardará sus registros. Después completaremos los datos de usuarios desde la base universitaria y publicaremos los reportes por separado. La programación llegará después de validar una extracción manual y definir cómo conservar los cambios. El endpoint de LibCal documentado ignora fechas pasadas; su carga histórica necesita otra fuente.
-
-En Alma, **sí: la API leerá un análisis guardado en Analytics**, identificado por su ruta. No necesitas desarrollar una API ni publicar un dashboard.
+Esto no confirma aún una extracción completa: la consulta de Alma sigue pendiente de validación y los IDs de categorías LibCal todavía son ejemplos.
 
 ## Sigue este orden
 
-| Orden | Documento | Dónde trabajar | Resultado |
-| --- | --- | --- | --- |
-| 01 | [Alma: reportes y acceso](01-alma.md) | Alma Analytics; después Developer Network | `Loans` y `Renewals` comprobados, rutas y clave de lectura |
-| 02 | [LibCal: reservas y acceso](02-libcal.md) | Administración de LibCal | Credenciales y campos de reservas identificados |
-| 03 | [Programa y Google Sheets](03-programa-y-sheets.md) | Ubuntu/WSL2; después Google Cloud | Inspección, adaptación del extractor y prueba de publicación |
+| Paso | Qué falta | Dónde hacerlo |
+| --- | --- | --- |
+| 01 | Validar acceso a Loans; separar usos internos e identidad; revisar campus de Renewals y mapear columnas | [Alma](01-alma.md): Analytics, terminal y `config.toml` |
+| 02 | Obtener los cid por campus, identificar preguntas y comparar reservas de hoy | [LibCal](02-libcal.md): terminal y `config.toml` |
+| 03 | Ampliar el extractor, comprobar conteos y publicar una muestra en Google | [Validación y publicación](03-programa-y-sheets.md) |
 
-**Tu tarea ahora:** abre el documento 01 y completa únicamente su sección «Crear Loans desde cero». Termina cuando puedas ver registros de un día conocido con un identificador de préstamo por fila. Después prepara renovaciones.
+**Empieza ahora por la primera prueba de 01.** No recrees claves, reportes ni la autorización de Google.
 
-## De dónde saldrá cada dato
+## Después del piloto
 
-| Datos | Fuente |
-| --- | --- |
-| Operación, fecha, ejemplar/recurso, sede de la operación, estado | Alma o LibCal |
-| Identificador y correo originales para buscar al usuario | Alma o LibCal; conservados sin asumir que son correctos |
-| Nombre, tipo de usuario, modalidad, campus del usuario, programa, departamento, unidad de negocio | Base universitaria, en la etapa posterior |
-| Mes, número de mes, hora entera y duración reservada | Cálculos del programa a partir de fechas/horas de origen |
+Los reportes de Alma y LibCal permanecen separados. Extraeremos operaciones, recursos, sedes y claves originales para identificar usuarios. Nombre, tipo de usuario, modalidad, campus del usuario, programa, departamento y unidad de negocio vendrán de la universidad.
 
-Los usos internos de Alma se identifican por `In House Loan Indicator = Y`; si no tienen usuario, no intentaremos cruzarlos con la base universitaria. Las renovaciones se reportarán por el campus de renovación.
+Los usos internos sin usuario no se cruzan con la base institucional. Un identificador no se asumirá como DNI sin verificarlo. Los CSV de [database/](database/) servirán para elegir uniones y validar vigencia académica en una fase posterior; no necesitamos todavía VPN ni credenciales Windows.
 
-Un DNI solo se usará cuando confirmemos qué campo lo contiene. No lo deduciremos del correo ni asumiremos que todo identificador es DNI. Los casos sin coincidencia quedarán pendientes de revisión.
-
-Los CSV de [database/](database/) documentan la arquitectura institucional. Incluyen dimensiones como `dbo.DIM_PERSONA`, `dbo.DIM_ESTUDIANTE` y `dbo.DIM_DOCENTE`, y candidatos como `COD_DOCUMENTO`, `PIDM` y `CORREO_CORPORATIVO`. Aún debemos verificar uniones, unicidad y vigencia académica. La VPN y las credenciales Windows corresponden a esa etapa posterior.
-
-## Qué está listo y qué falta
-
-Existe un piloto en Python con SQLite y publicación en Google Sheets. **Todavía no guarda todos los campos definidos en estas guías**, entre ellos el correo y varios atributos del ejemplar/formulario. Primero verificaremos los reportes; luego adaptaremos el código antes de una extracción completa.
-
-Estas cuatro guías sustituyen las instrucciones anteriores. La configuración de ejemplo es una plantilla técnica y no confirma los campos de tu institución.
+También quedan pendientes la fuente histórica de LibCal y la programación periódica. Su endpoint documentado ignora fechas pasadas y el endpoint de cambios limita la consulta a 24 horas.

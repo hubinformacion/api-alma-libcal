@@ -7,7 +7,7 @@ database = "data/pilot.sqlite3"
 [alma]
 # Choose the API host for your institutional region (NA, EU, AP, etc.).
 base_url = "https://api-na.hosted.exlibrisgroup.com"
-api_key_env = "ALMA_API_KEY"
+api_key_env = "ALMA_API_KEY" # Nombre de variable en .env; el valor secreto no va aquí.
 page_size = 1000
 max_pages = 10000
 
@@ -51,8 +51,8 @@ quantity = "Column10"
 base_url = "https://REPLACE_INSTITUTION.libcal.com"
 token_path = "/1.1/oauth/token"
 bookings_path = "/1.1/space/bookings"
-client_id_env = "LIBCAL_CLIENT_ID"
-client_secret_env = "LIBCAL_CLIENT_SECRET"
+client_id_env = "LIBCAL_CLIENT_ID" # Nombre de variable en .env; el valor secreto no va aquí.
+client_secret_env = "LIBCAL_CLIENT_SECRET" # Nombre de variable en .env; el valor secreto no va aquí.
 # Based on docs/1_1.yml. Validate actual responses and category IDs.
 # /space/bookings ignores past dates; historical backfill needs another source.
 response_path = "" # Empty for root arrays; e.g. "bookings" for wrapped responses.

@@ -1,53 +1,38 @@
 # Alma + LibCal → reportes de biblioteca
 
-Proyecto para extraer préstamos/renovaciones de Alma Analytics y reservas de LibCal. Los reportes permanecen separados; los datos académicos y de identidad se completarán después desde la base universitaria.
+Extraemos operaciones de Alma y LibCal por separado. La base universitaria completará después los datos de usuarios.
 
-## Empieza aquí
+## Pendientes
 
-Lee [00 — Inicio y orden de trabajo](docs/00-inicio.md). Tu primera tarea es **crear el análisis Loans en Alma Analytics**, siguiendo el documento 01. No hace falta configurar claves ni Google para empezar.
+Empieza por [00 — Estado y próximos pasos](docs/00-inicio.md). Ya están preparados Python, las credenciales locales y Google Sheets; las guías contienen únicamente lo que falta validar o completar.
 
 | Orden | Guía |
 | --- | --- |
-| 00 | [Inicio: alcance y primer paso](docs/00-inicio.md) |
-| 01 | [Alma: columnas, reglas de préstamos/renovaciones y acceso API](docs/01-alma.md) |
-| 02 | [LibCal: reservas, formularios y acceso API](docs/02-libcal.md) |
-| 03 | [Programa: configuración, validación y Google Sheets](docs/03-programa-y-sheets.md) |
+| 00 | [Estado y próximos pasos](docs/00-inicio.md) |
+| 01 | [Alma: ajustes y validación](docs/01-alma.md) |
+| 02 | [LibCal: categorías y prueba de reservas](docs/02-libcal.md) |
+| 03 | [Completar extracción y validar publicación](docs/03-programa-y-sheets.md) |
 
-**Estado:** existe un piloto manual en Python, SQLite y Google Sheets. Todavía debe ampliarse para guardar todos los campos definidos en las guías. Primero validaremos las estructuras reales de los proveedores. La automatización diaria/semanal y el cruce institucional serán etapas posteriores.
+## Comandos directos
 
-## Ejecución sencilla
-
-Desde Ubuntu, en la carpeta del proyecto:
+Desde la carpeta del proyecto, sin activar entornos ni usar scripts:
 
 ```bash
-./run.sh --help
-./run.sh discover-libcal --locations 20114
-./run.sh check-libcal --location 20114
+.venv/bin/python -m alma_libcal inspect-alma --dataset prestamos --without-filter
+.venv/bin/python -m alma_libcal discover-libcal --locations 20114
+.venv/bin/python -m alma_libcal check-libcal --location 20114
 ```
 
-El programa lee `.env` junto a `config.toml`; `run.sh` gestiona el entorno Python sin activarlo manualmente. Los pasos e IDs por campus están en 02. La consulta LibCal documentada ignora fechas pasadas: aún debemos definir otra fuente para el histórico.
+`.venv/bin/python` selecciona el Python que ya tiene las dependencias de Google instaladas. `.env` contiene las credenciales y se lee automáticamente; `config.toml` contiene rutas, IDs y mapas de campos. Se usan juntos. Las opciones terminadas en `_env` solo indican nombres de variables, no contienen claves.
 
-## Demostración sin credenciales
-
-En Ubuntu/WSL2, con Python 3.12 o posterior, desde la carpeta del proyecto:
-
-```bash
-PYTHONPATH=src python3 -m alma_libcal demo
-```
-
-Genera `demo-output/pilot.sqlite3` y `demo-output/sheets.json` con datos ficticios, sin consultar APIs ni publicar en Google. Se puede repetir sin duplicar registros. La instalación para usar fuentes reales se explica en 03.
+El piloto todavía debe ampliarse para guardar todos los campos del reporte. La consulta documentada de LibCal ignora fechas pasadas; el histórico requiere otra fuente.
 
 ## Desarrollo
 
-- `src/alma_libcal/`: programa, configuración, modelos y almacenamiento.
-- `src/alma_libcal/connectors/`: Alma, LibCal y Google Sheets.
-- `tests/`: pruebas con `unittest`, respuestas ficticias y bases temporales.
-- `docs/`: las cuatro guías; `docs/database/` conserva los metadatos institucionales recibidos.
-- `config.example.toml`: plantilla; `config.toml` y `secrets/` son privados y están excluidos de Git.
+Código en `src/alma_libcal/`, conectores en `src/alma_libcal/connectors/`, pruebas en `tests/`. `docs/1_1.yml` contiene la especificación LibCal y `docs/database/` los metadatos institucionales. `config.example.toml` y `.env.example` son plantillas; los archivos locales y `secrets/` están excluidos de Git.
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-PYTHONPATH=src python3 -m compileall -q src tests
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Estilo del código: cuatro espacios y nombres `snake_case`. Las pruebas verifican paginación, duplicados, cantidades, cancelaciones y recuperación ante errores. La comparación con los sistemas institucionales sigue siendo necesaria antes de usar los datos reales.
+Las pruebas usan `unittest`, respuestas ficticias y bases temporales. Para una demostración sin red ni publicación: `.venv/bin/python -m alma_libcal demo`. Estilo del código: cuatro espacios y nombres `snake_case`.
