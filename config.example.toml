@@ -63,6 +63,7 @@ window_days = 1
 max_pages = 10000
 
 [libcal.query]
+lid = "{location_id}"
 date = "{date}"
 days = "{days}"
 cid = "{category_id}"
@@ -72,7 +73,6 @@ form_answers = 1
 include_cancel = 1
 include_tentative = 1
 include_denied = 1
-# Optional: lid = "{location_id}" when all categories have location_id.
 # If the API takes an end date, use its parameter name with "{end_date}".
 # Add documented static parameters here if required to include cancellations.
 
@@ -93,17 +93,118 @@ user_id = "" # No verified institutional ID yet; do not use email as a substitut
 check_in = "" # Map only if an ISO timestamp is available.
 check_out = ""
 
+# Categorías verificadas por campus; source_name y form_id son metadatos de referencia.
 [[libcal.categories]]
-# One entry per real cid; repeat groups for additional campuses as needed.
-# location_id = "20114" # Campus lid, not category cid.
-id = "REPLACE_COMPUTERS_CATEGORY_ID"
+id = "42378"
 name = "Computadoras y laptops"
+location_id = "20116"
+location_name = "Campus Instituto"
+source_name = "Computadoras"
+form_id = "8254"
+
 [[libcal.categories]]
-id = "REPLACE_GROUP_SPACES_CATEGORY_ID"
+id = "42377"
 name = "Espacios grupales"
+location_id = "20116"
+location_name = "Campus Instituto"
+source_name = "Espacios grupales"
+form_id = "8253"
+
 [[libcal.categories]]
-id = "REPLACE_KINDLE_CATEGORY_ID"
+id = "42358"
+name = "Computadoras y laptops"
+location_id = "20109"
+location_name = "Campus Huancayo"
+source_name = "Computadoras y Laptops"
+form_id = "8254"
+
+[[libcal.categories]]
+id = "42357"
+name = "Espacios grupales"
+location_id = "20109"
+location_name = "Campus Huancayo"
+source_name = "Espacios grupales"
+form_id = "8253"
+
+[[libcal.categories]]
+id = "53609"
 name = "Kindle"
+location_id = "20109"
+location_name = "Campus Huancayo"
+source_name = "Kindle"
+form_id = "8254"
+
+[[libcal.categories]]
+id = "42369"
+name = "Computadoras y laptops"
+location_id = "20110"
+location_name = "Campus Arequipa"
+source_name = "Computadoras y Laptops"
+form_id = "8254"
+
+[[libcal.categories]]
+id = "42368"
+name = "Espacios grupales"
+location_id = "20110"
+location_name = "Campus Arequipa"
+source_name = "Espacios grupales"
+form_id = "8253"
+
+[[libcal.categories]]
+id = "42373"
+name = "Computadoras y laptops"
+location_id = "20114"
+location_name = "Campus Cusco"
+source_name = "Computadoras"
+form_id = "8254"
+
+[[libcal.categories]]
+id = "42372"
+name = "Espacios grupales"
+location_id = "20114"
+location_name = "Campus Cusco"
+source_name = "Espacios grupales"
+form_id = "8253"
+
+[[libcal.categories]]
+id = "53604"
+name = "Kindle"
+location_id = "20114"
+location_name = "Campus Cusco"
+source_name = "Kindle"
+form_id = "8254"
+
+[[libcal.categories]]
+id = "42375"
+name = "Computadoras y laptops"
+location_id = "20115"
+location_name = "Campus Los Olivos"
+source_name = "Computadoras y Laptops"
+form_id = "0"
+
+[[libcal.categories]]
+id = "42374"
+name = "Espacios grupales"
+location_id = "20115"
+location_name = "Campus Los Olivos"
+source_name = "Espacios grupales"
+form_id = "8253"
+
+[[libcal.categories]]
+id = "49251"
+name = "Espacios grupales"
+location_id = "23350"
+location_name = "Campus Ica"
+source_name = "Espacios grupales"
+form_id = "8253"
+
+[[libcal.categories]]
+id = "49252"
+name = "Computadoras y laptops"
+location_id = "23350"
+location_name = "Campus Ica"
+source_name = "Computadoras y Laptops"
+form_id = "8254"
 
 [google]
 spreadsheet_id = "REPLACE_SPREADSHEET_ID"
