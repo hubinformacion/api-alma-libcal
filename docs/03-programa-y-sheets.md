@@ -29,8 +29,8 @@ Desde la carpeta del proyecto:
 
 Una vez verificadas las columnas/respuestas reales:
 
-1. Completar los mapas de Alma y las categorías de LibCal con los valores reales.
-2. Ampliar conectores, modelos, almacenamiento y salida para conservar correo, atributos del ejemplar y respuestas del formulario.
+1. Validar el filtro de fecha de Renewals y las demás categorías de LibCal; los mapas e IDs ya están configurados.
+2. Ampliar el esquema para atributos del ejemplar y cálculos de los reportes. El correo original y las dos respuestas de integrantes ya se almacenan y se incluyen en la publicación.
 3. Verificar formatos de fechas y clasificación de préstamos; conservar usos internos sin usuario y renovaciones por campus.
 4. Comparar un día de Alma y hoy en LibCal con los reportes originales.
 5. Repetir la extracción y confirmar que no duplica registros.

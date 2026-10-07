@@ -191,6 +191,11 @@ class LibCalConnector:
         ends_at = timestamp(mapped(row, fields, "ends_at", required=True), timezone)
         if ends_at < starts_at:
             raise SourceError("Una reserva tiene fin anterior a su inicio.")
+        form_id = str(category.get("form_id", ""))
+        form = self.config.raw.get("libcal", {}).get("forms", {}).get(form_id, {})
+        answers = form.get("report_fields", {})
+        if not isinstance(answers, dict) or any(not isinstance(value, str) for value in answers.values()):
+            raise ConfigError("Configura libcal.forms.report_fields con los IDs de pregunta como texto.")
         return Record(
             dataset="reservas", record_id=mapped(row, fields, "booking_id", required=True),
             activity_date=local_date(starts_at, timezone), user_id=mapped(row, fields, "user_id"),
@@ -201,4 +206,8 @@ class LibCalConnector:
             starts_at=starts_at, ends_at=ends_at,
             check_in=timestamp(mapped(row, fields, "check_in"), timezone),
             check_out=timestamp(mapped(row, fields, "check_out"), timezone),
+            source_user_email=mapped(row, fields, "source_user_email"),
+            booking_form_id=form_id if form_id != "0" else "",
+            booking_form_answer_1=mapped(row, answers, "booking_form_answer_1"),
+            booking_form_answer_2=mapped(row, answers, "booking_form_answer_2"),
         )

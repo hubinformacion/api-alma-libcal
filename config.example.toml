@@ -17,6 +17,7 @@ date_column = '"Loan Date"."Loan Date"'
 # Orden verificado para el reporte Loans actual de esta institución.
 # Si cambia el análisis, inspecciona de nuevo antes de modificar ColumnN.
 [alma.prestamos.fields]
+source_user_email = "Column19"
 # Mapeo verificado de Loans sin fórmulas de usuario ni correo.
 loan_id = "Column12"
 activity_date = "Column8"
@@ -34,6 +35,7 @@ source_available_at = ""
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
 date_column = '"Renewal Date"."Renewal Date"'
 [alma.renovaciones.fields]
+source_user_email = "Column10"
 # Mapeo verificado de Renewals; clave: préstamo + fecha + campus.
 loan_id = "Column4"
 activity_date = "Column13"
@@ -77,6 +79,7 @@ include_denied = 1
 # Add documented static parameters here if required to include cancellations.
 
 [libcal.fields]
+source_user_email = "email"
 booking_id = "bookId"
 starts_at = "fromDate"
 ends_at = "toDate"
@@ -206,8 +209,7 @@ location_name = "Campus Ica"
 source_name = "Computadoras y Laptops"
 form_id = "8254"
 
-# Formularios verificados: metadatos para la ampliación del extractor.
-# No asignan todavía booking_form_answer_1 ni booking_form_answer_2.
+# Formularios verificados; report_fields asigna las preguntas del reporte por ID.
 [libcal.forms."8253"]
 name = "Espacios grupales"
 [libcal.forms."8253".fields]
@@ -218,6 +220,10 @@ q25458 = "Número de celular"
 q25536 = "Términos y Condiciones"
 q25459 = "Correo del integrante 2"
 q25460 = "Correo del integrante 3"
+
+[libcal.forms."8253".report_fields]
+booking_form_answer_1 = "q25459"
+booking_form_answer_2 = "q25460"
 
 [libcal.forms."8254"]
 name = "Computadoras y Laptops"

@@ -19,11 +19,11 @@ La inspección con fechas devolvió las columnas del reporte. No hace falta repe
 
 `Column0` es auxiliar y no se importa. El reporte no entrega fechas de actualización; esos mapas permanecen vacíos.
 
-## 2. Identidad original y campos pendientes de almacenamiento
+## 2. Correo original implementado; atributos del ejemplar pendientes
 
-El reporte ya entrega User Primary Identifier (Column1) y Preferred Email (Column19) sin CASE ni LOWER. El programa obtiene la clasificación de uso interno del indicador Y/N; no se sustituye la identidad por una etiqueta.
+El reporte ya entrega User Primary Identifier (Column1) y Preferred Email (Column19) sin CASE ni LOWER. El programa ya conserva el correo como `source_user_email` en Loans (Column19) y Renewals (Column10). Obtiene la clasificación de uso interno del indicador Y/N; no se sustituye la identidad por una etiqueta.
 
-También quedaron identificados Barcode (Column9), Loan Time (Column14), Material Type (Column15), MMS Id (Column16), Item Policy (Column18), correo (Column19), Library Code (Column7) y el módulo (Column4–Column6). El extractor todavía debe ampliarse para almacenar todos esos campos; el mapeo actual corresponde al esquema básico implementado.
+También quedaron identificados Barcode (Column9), Loan Time (Column14), Material Type (Column15), MMS Id (Column16), Item Policy (Column18), correo (Column19), Library Code (Column7) y el módulo (Column4–Column6). El correo ya se almacena; los demás atributos requieren ampliar el esquema básico.
 
 **Si cambias columnas o fórmulas, vuelve a inspeccionar antes de importar:** el orden de ColumnN puede cambiar. Los atributos académicos y la identidad validada se completarán desde la universidad después.
 
@@ -43,7 +43,7 @@ La inspección recibida confirma estas columnas; ya se configuró `[alma.renovac
 | `status` | Column5 — Loan Status |
 | `quantity` | Column14 — Renewals |
 
-Column0 se ignora. No hay fechas de actualización en esta respuesta, así que sus mapas quedan vacíos. Barcode (Column2), Material Type (Column6), MMS Id (Column7), Item Policy (Column9) y Preferred Email (Column10) quedan identificados para la ampliación del extractor.
+Column0 se ignora. No hay fechas de actualización en esta respuesta, así que sus mapas quedan vacíos. Barcode (Column2), Material Type (Column6), MMS Id (Column7), Item Policy (Column9) quedan identificados para la ampliación del extractor. Preferred Email (Column10) ya se almacena como `source_user_email`.
 
 La cantidad llega como `xsd:double`: el lector acepta valores enteros como `2.0` y los convierte a 2. El total de renovaciones es la **suma de quantity**, no el número de filas. La clave distingue préstamo + día + campus de renovación. Un campus ausente queda sin asignar.
 
@@ -52,7 +52,7 @@ La cantidad llega como `xsd:double`: el lector acepta valores enteros como `2.0`
 Ambos reportes ya tienen su mapeo básico confirmado. Todavía debemos:
 
 1. Confirmar que Renewals admite el intervalo de fecha enviado por la API. Su filtro debe usar Renewal Date como `is prompted`, sin un filtro fijo de Loan Date, y conservar `Renewals > 0`.
-2. Ampliar el almacenamiento para correo y atributos del ejemplar que ya identificamos en ambos análisis.
+2. Ampliar el almacenamiento para los atributos del ejemplar que ya identificamos en ambos análisis; el correo ya está implementado.
 3. Extraer un día conocido y comparar préstamos distintos y suma de renovaciones por campus con Analytics. Verificar que no se repiten claves préstamo/día/campus.
 
 Para inspeccionar Renewals con fechas, sustituye ambos valores por un día con renovaciones conocidas:

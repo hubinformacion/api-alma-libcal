@@ -12,6 +12,7 @@ HEADERS = (
     "status", "category", "starts_at", "ends_at", "check_in", "check_out", "quantity",
     "source_updated_at", "source_available_at", "user_id_missing",
     "site_id", "in_house_loan_indicator", "usage_type",
+    "source_user_email", "booking_form_id", "booking_form_answer_1", "booking_form_answer_2",
 )
 
 
@@ -108,6 +109,10 @@ class Record:
     source_available_at: str = ""
     site_id: str = ""
     in_house_loan_indicator: str = ""
+    source_user_email: str = ""
+    booking_form_id: str = ""
+    booking_form_answer_1: str = ""
+    booking_form_answer_2: str = ""
 
     def __post_init__(self):
         if self.dataset not in DATASETS or not self.record_id:

@@ -261,6 +261,34 @@ class ConnectorTests(unittest.TestCase):
         with self.assertRaisesRegex(SourceError, "otra categoría"):
             LibCalConnector(self.config, DemoHTTP()).normalize(first, fields, {"id": "102", "name": "Espacios grupales"})
 
+    def test_group_participant_emails_use_question_ids_not_response_order(self):
+        self.config.raw["libcal"]["forms"] = {
+            "8253": {"report_fields": {"booking_form_answer_1": "q25459", "booking_form_answer_2": "q25460"}}}
+        fields = {**self.config.raw["libcal"]["fields"], "source_user_email": "email"}
+        row = {**json.loads(fixture("libcal_bookings.json"))[0],
+               "q25460": "third@example.invalid", "q25458": "not-an-email",
+               "email": "requester@example.invalid", "q25459": "second@example.invalid"}
+        connector = LibCalConnector(self.config, DemoHTTP())
+        category = {"id": "102", "name": "Espacios grupales", "form_id": "8253"}
+        record = connector.normalize(row, fields, category)
+        self.assertEqual(record.source_user_email, "requester@example.invalid")
+        self.assertEqual(record.booking_form_answer_1, "second@example.invalid")
+        self.assertEqual(record.booking_form_answer_2, "third@example.invalid")
+        self.assertEqual(record.booking_form_id, "8253")
+        # The same response cannot populate participant columns for another form.
+        computer = connector.normalize(row, fields, {"id": "101", "name": "Computadoras y laptops", "form_id": "8254"})
+        self.assertEqual(computer.booking_form_answer_1, "")
+        self.assertEqual(computer.booking_form_answer_2, "")
+        del row["q25460"]
+        self.assertEqual(connector.normalize(row, fields, category).booking_form_answer_2, "")
+
+    def test_alma_email_is_preserved_without_becoming_user_id(self):
+        fields = {"loan_id": "id", "activity_date": "date", "source_user_email": "email"}
+        record = AlmaConnector(self.config, QueueHTTP([]), "prestamos").normalize(
+            {"id": "L1", "date": "2026-10-06", "email": "Reader@example.invalid"}, fields)
+        self.assertEqual(record.source_user_email, "Reader@example.invalid")
+        self.assertEqual(record.user_id, "")
+
     def test_libcal_location_ids_are_preserved_and_wrong_campus_is_rejected(self):
         first = json.loads(fixture("libcal_bookings.json"))[0]
         first["lid"] = 20114

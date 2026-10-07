@@ -170,12 +170,16 @@ class AlmaConnector:
         # Existing Analytics formulas use this activity label instead of a user ID.
         if not renewal and indicator == "Y" and user_id.casefold() == "uso interno":
             user_id = ""
+        email = mapped(row, fields, "source_user_email")
+        if not renewal and indicator == "Y" and email.casefold() == "uso interno":
+            email = ""
         record_id = f"{loan_id}:{day}:{site_id}" if renewal and site_id else (f"{loan_id}:{day}" if renewal else loan_id)
         return Record(
             dataset=self.dataset,
             record_id=record_id,
             activity_date=day,
             user_id=user_id,
+            source_user_email=email,
             resource_id=mapped(row, fields, "resource_id"),
             resource_name=mapped(row, fields, "resource_name"),
             site=mapped(row, fields, "site"),
