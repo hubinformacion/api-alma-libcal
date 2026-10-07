@@ -16,6 +16,8 @@ report_path = "/shared/REPLACE_INSTITUTION/Pilot/Loans"
 date_column = '"Loan Date"."Loan Date"'
 # Column positions below are EXAMPLES: inspect the actual API XML.
 # API column order is not the UI column order. Map loan/user IDs as text.
+# After inspection, also map site_id to Campus Code and
+# in_house_loan_indicator to the raw In House Loan Indicator (Y/N).
 [alma.prestamos.fields]
 loan_id = "Column1"
 activity_date = "Column2"
@@ -31,6 +33,9 @@ source_available_at = "Column9"
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
 date_column = '"Renewal Date"."Renewal Date"'
 [alma.renovaciones.fields]
+# Map site to Renewal Circulation Desk -> Campus Name and site_id to Campus Code.
+# Example after inspection: site_id = "ColumnN" (replace N with the real index).
+# With site_id the key is loan/day/campus; without it the legacy key is loan/day.
 loan_id = "Column1"
 activity_date = "Column2"
 user_id = "Column3"
@@ -48,10 +53,10 @@ token_path = "/1.1/oauth/token"
 bookings_path = "/1.1/space/bookings"
 client_id_env = "LIBCAL_CLIENT_ID"
 client_secret_env = "LIBCAL_CLIENT_SECRET"
-# Check all parameters against Admin → API. These are an editable template,
-# NOT a verified contract for your instance. Include cancelled records there.
+# Based on docs/1_1.yml. Validate actual responses and category IDs.
+# /space/bookings ignores past dates; historical backfill needs another source.
 response_path = "" # Empty for root arrays; e.g. "bookings" for wrapped responses.
-pagination = "offset" # offset, page, or none (only if API returns ALL records).
+pagination = "page"
 page_start = 1
 page_size = 100
 window_days = 1
@@ -62,8 +67,12 @@ date = "{date}"
 days = "{days}"
 cid = "{category_id}"
 limit = "{limit}"
-offset = "{offset}"
-# For page pagination use page = "{page}" instead of offset.
+page = "{page}"
+form_answers = 1
+include_cancel = 1
+include_tentative = 1
+include_denied = 1
+# Optional: lid = "{location_id}" when all categories have location_id.
 # If the API takes an end date, use its parameter name with "{end_date}".
 # Add documented static parameters here if required to include cancellations.
 
@@ -72,18 +81,21 @@ booking_id = "bookId"
 starts_at = "fromDate"
 ends_at = "toDate"
 resource_id = "eid"
-resource_name = "itemName"
-site = "locationName"
+resource_name = "item_name"
+site = "location_name"
+site_id = "lid"
 status = "status"
 # Optional if the response includes category ID; enables filter verification.
-# category_id = "cid"
+category_id = "cid"
 # Configure the actual institutional code field, not an email fallback.
 # Dotted paths support nested objects and array indices, e.g. answers.0.value.
-user_id = "REPLACE_USER_CODE_FIELD"
+user_id = "" # No verified institutional ID yet; do not use email as a substitute.
 check_in = "" # Map only if an ISO timestamp is available.
 check_out = ""
 
 [[libcal.categories]]
+# One entry per real cid; repeat groups for additional campuses as needed.
+# location_id = "20114" # Campus lid, not category cid.
 id = "REPLACE_COMPUTERS_CATEGORY_ID"
 name = "Computadoras y laptops"
 [[libcal.categories]]

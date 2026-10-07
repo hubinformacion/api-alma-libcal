@@ -64,7 +64,7 @@ def run_demo(directory):
     interval = Interval(date(2026, 10, 6), date(2026, 10, 6))
     connectors = {"prestamos": AlmaConnector(config, http, "prestamos"),
                   "renovaciones": AlmaConnector(config, http, "renovaciones"), "reservas": LibCalConnector(config, http)}
-    with exclusive_lock(config.database), patch.dict(os.environ, {"DEMO_ALMA_KEY": "fictional", "DEMO_LIBCAL_ID": "fictional", "DEMO_LIBCAL_SECRET": "fictional"}):
+    with exclusive_lock(config.database), patch.dict(os.environ, {"DEMO_ALMA_KEY": "fictional", "DEMO_LIBCAL_ID": "fictional", "DEMO_LIBCAL_SECRET": "fictional"}), patch("alma_libcal.connectors.libcal.current_date", return_value=interval.start):
         store = Store(config.database)
         try:
             successful, failures = extract(store, connectors, interval)

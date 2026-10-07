@@ -64,14 +64,23 @@ class AlmaConnector:
         self.http = http
         self.dataset = dataset
 
-    def inspect(self, interval):
+    def inspect(self, interval, *, without_filter=False):
         settings = self.config.raw.get("alma", {})
         report = settings.get(self.dataset, {})
-        raw = self.http.request("GET", https_url(required(settings, "base_url", "alma")) + "/almaws/v1/analytics/reports",
-            params={"path": required(report, "report_path", f"alma.{self.dataset}"), "limit": 25,
-                    "apikey": secret(settings, "api_key_env", "alma"), "col_names": "true",
-                    "filter": date_filter(required(report, "date_column", f"alma.{self.dataset}"), interval)},
-            headers={"Accept": "application/xml"})
+        path = required(report, "report_path", f"alma.{self.dataset}")
+        if not path.startswith("/shared/"):
+            raise ConfigError("La ruta API de Alma debe comenzar por /shared/, no /Shared Folders/ ni My Folders.")
+        params = {"path": path, "limit": 25, "apikey": secret(settings, "api_key_env", "alma"), "col_names": "true"}
+        if not without_filter:
+            params["filter"] = date_filter(required(report, "date_column", f"alma.{self.dataset}"), interval)
+        try:
+            raw = self.http.request("GET", https_url(required(settings, "base_url", "alma")) + "/almaws/v1/analytics/reports",
+                params=params, headers={"Accept": "application/xml"})
+        except SourceError as error:
+            if "HTTP 500" in str(error):
+                raise SourceError("Alma respondió HTTP 500. Verifica ruta /shared/, permisos Analytics/Production y región. "
+                                  "Prueba inspect-alma --dataset " + self.dataset + " --without-filter para aislar el filtro de fecha.") from None
+            raise
         rows, _, _ = parse_page(raw)
         root = parse_xml(raw)
         nodes = list(root.iter())
@@ -97,6 +106,8 @@ class AlmaConnector:
         url = https_url(required(settings, "base_url", "alma")) + "/almaws/v1/analytics/reports"
         key = secret(settings, "api_key_env", "alma")
         path = required(report, "report_path", f"alma.{self.dataset}")
+        if not path.startswith("/shared/"):
+            raise ConfigError("La ruta API de Alma debe comenzar por /shared/.")
         column = required(report, "date_column", f"alma.{self.dataset}")
         for name in ("loan_id", "activity_date"):
             required(fields, name, f"alma.{self.dataset}.fields")
@@ -151,14 +162,21 @@ class AlmaConnector:
         loan_id = mapped(row, fields, "loan_id", required=True)
         day = local_date(mapped(row, fields, "activity_date", required=True), self.config.timezone)
         renewal = self.dataset == "renovaciones"
+        site_id = mapped(row, fields, "site_id")
+        indicator = mapped(row, fields, "in_house_loan_indicator").upper()
+        if indicator not in ("", "Y", "N"):
+            raise SourceError("In House Loan Indicator debe ser Y, N o vacío; conserva el indicador original.")
+        record_id = f"{loan_id}:{day}:{site_id}" if renewal and site_id else (f"{loan_id}:{day}" if renewal else loan_id)
         return Record(
             dataset=self.dataset,
-            record_id=f"{loan_id}:{day}" if renewal else loan_id,
+            record_id=record_id,
             activity_date=day,
             user_id=mapped(row, fields, "user_id"),
             resource_id=mapped(row, fields, "resource_id"),
             resource_name=mapped(row, fields, "resource_name"),
             site=mapped(row, fields, "site"),
+            site_id=site_id,
+            in_house_loan_indicator=indicator if not renewal else "",
             status=mapped(row, fields, "status"),
             quantity=quantity(mapped(row, fields, "quantity", required=True)) if renewal else 1,
             source_updated_at=mapped(row, fields, "source_updated_at"),

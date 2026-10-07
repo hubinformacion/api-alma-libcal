@@ -36,11 +36,20 @@ def parser():
             command.add_argument("--to", dest="date_to", type=parse_date)
             command.add_argument("--extract-only", action="store_true", help="Guardar en SQLite sin publicar en Google.")
     commands.add_parser("status", help="Ver estado y pendientes locales, sin consultar APIs.")
-    commands.add_parser("discover-libcal", help="Consultar ubicaciones y categorías sin recuperar usuarios.")
+    discover = commands.add_parser("discover-libcal", help="Consultar ubicaciones, categorías, recursos o formularios.")
+    discovery = discover.add_mutually_exclusive_group()
+    discovery.add_argument("--locations", nargs="+", type=int, help="IDs lid de los campus para listar sus categorías.")
+    discovery.add_argument("--category", type=int, help="ID cid para listar sus recursos.")
+    discovery.add_argument("--form", type=int, help="ID formid para consultar preguntas, sin respuestas de usuarios.")
+    check = commands.add_parser("check-libcal", help="Validar acceso y contar reservas sin imprimir datos personales.")
+    check.add_argument("--location", type=int, required=True)
+    check.add_argument("--category", type=int)
+    check.add_argument("--date", type=parse_date, help="Hoy por defecto; no admite fechas pasadas.")
     inspect = commands.add_parser("inspect-alma", help="Mostrar columnas del reporte sin imprimir registros.")
     inspect.add_argument("--dataset", choices=("prestamos", "renovaciones"), required=True)
     inspect.add_argument("--from", dest="date_from", type=parse_date)
     inspect.add_argument("--to", dest="date_to", type=parse_date)
+    inspect.add_argument("--without-filter", action="store_true", help="Probar la ruta sin filtro API, mostrando solo nombres de columnas.")
     auth = commands.add_parser("auth-google", help="Autorizar Google mediante navegador y callback local.")
     auth.add_argument("--port", type=int, default=8765)
     auth.add_argument("--open-browser", action="store_true")
@@ -68,11 +77,16 @@ def main(argv=None):
             getattr(arguments, "date_to", None) or datetime.now(ZoneInfo(config.timezone)).date(),
         )
         if arguments.command == "discover-libcal":
-            metadata = LibCalConnector(config, HTTPClient()).discover()
+            metadata = LibCalConnector(config, HTTPClient()).discover(arguments.locations, arguments.category, arguments.form)
             print(json.dumps(metadata, ensure_ascii=False, indent=2))
             return 0
+        if arguments.command == "check-libcal":
+            day = arguments.date or datetime.now(ZoneInfo(config.timezone)).date()
+            result = LibCalConnector(config, HTTPClient()).check_bookings(day, arguments.location, arguments.category)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         if arguments.command == "inspect-alma":
-            columns = AlmaConnector(config, HTTPClient(), arguments.dataset).inspect(interval)
+            columns = AlmaConnector(config, HTTPClient(), arguments.dataset).inspect(interval, without_filter=arguments.without_filter)
             print(json.dumps(columns, ensure_ascii=False, indent=2))
             return 0
         with exclusive_lock(config.database):

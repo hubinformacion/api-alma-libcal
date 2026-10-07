@@ -5,11 +5,14 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 from alma_libcal.cli import main
 from alma_libcal.errors import SourceError
 from alma_libcal.http import HTTPClient
+from alma_libcal.config import load_config, load_env
+from alma_libcal.errors import ConfigError
 
 
 class Response:
@@ -120,6 +123,24 @@ class CLITests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output)[0]["last_status"], "not_run")
         self.assertTrue((self.directory / "data" / "pilot.sqlite3").exists())
+
+    def test_env_is_loaded_beside_config_and_preserves_exported_variables(self):
+        config = self.config()
+        (self.directory / ".env").write_text('TEST_ENV_KEY="value with # and $literal"\nTEST_ENV_OVERRIDE=from-file\n')
+        with patch.dict(os.environ, {"TEST_ENV_OVERRIDE": "exported"}):
+            os.environ.pop("TEST_ENV_KEY", None)
+            load_config(config)
+            self.assertEqual(os.environ["TEST_ENV_KEY"], "value with # and $literal")
+            self.assertEqual(os.environ["TEST_ENV_OVERRIDE"], "exported")
+
+    def test_invalid_env_redacts_secret_and_applies_no_partial_values(self):
+        path = self.directory / ".env"
+        path.write_text('TEST_PARTIAL_SECRET=private-secret\nINVALID LINE private-secret\n')
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(ConfigError) as caught:
+                load_env(path)
+            self.assertNotIn("private-secret", str(caught.exception))
+            self.assertNotIn("TEST_PARTIAL_SECRET", os.environ)
 
     def test_reversed_dates_and_empty_publish_fail(self):
         config = self.config()

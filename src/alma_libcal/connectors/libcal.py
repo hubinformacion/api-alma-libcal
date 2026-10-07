@@ -1,11 +1,24 @@
 import hashlib
-from datetime import timedelta
+from collections import Counter
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from ..config import https_url, positive, required, secret
 from ..errors import ConfigError, SourceError
 from ..models import Batch, Record, local_date, lookup, mapped, timestamp
 
 CATEGORY_NAMES = {"Computadoras y laptops", "Espacios grupales", "Kindle"}
+
+
+def current_date(timezone):
+    return datetime.now(ZoneInfo(timezone)).date()
+
+
+def numeric_ids(values):
+    ids = [str(value) for value in values]
+    if not ids or any(not value.isdigit() or int(value) < 1 for value in ids):
+        raise ConfigError("Los IDs de LibCal deben ser números positivos.")
+    return ",".join(ids)
 
 
 class LibCalConnector:
@@ -26,16 +39,65 @@ class LibCalConnector:
             raise SourceError("LibCal no devolvió un token de acceso válido.")
         return {"Authorization": "Bearer " + access["access_token"], "Accept": "application/json"}
 
-    def discover(self):
+    def discover(self, locations=None, category=None, form=None):
         settings = self.config.raw.get("libcal", {})
         base = https_url(required(settings, "base_url", "libcal"))
         headers = self.authenticate(settings, base)
-        result = self.http.json("GET", base + "/1.1/space/locations", params={"details": "1"}, headers=headers)
+        params = {"details": "1", "admin_only": "1"}
+        if locations:
+            path = "/1.1/space/categories/" + numeric_ids(locations)
+        elif category:
+            path = "/1.1/space/category/" + numeric_ids([category])
+        elif form:
+            path = "/1.1/space/form/" + numeric_ids([form])
+            params = {}
+        else:
+            path = "/1.1/space/locations"
+        result = self.http.json("GET", base + path, params=params, headers=headers)
         if not isinstance(result, (list, dict)) or (isinstance(result, dict) and ("error" in result or "errors" in result)):
             raise SourceError("LibCal no devolvió metadatos de ubicaciones válidos.")
         return result
 
+    def check_bookings(self, day, location, category=None):
+        """Read all pages for one day; return only counts and field names."""
+        if day < current_date(self.config.timezone):
+            raise ConfigError("LibCal ignora fechas pasadas en /space/bookings. Prueba con hoy o una fecha futura; "
+                              "este endpoint no permite validar una carga histórica.")
+        settings = self.config.raw.get("libcal", {})
+        base = https_url(required(settings, "base_url", "libcal"))
+        params = {"lid": numeric_ids([location]), "date": day.isoformat(), "days": 0, "limit": 100,
+                  "form_answers": 1, "include_cancel": 1, "include_tentative": 1, "include_denied": 1}
+        if category:
+            params["cid"] = numeric_ids([category])
+        headers = self.authenticate(settings, base)
+        fields, statuses, campuses, count = set(), Counter(), Counter(), 0
+        fingerprints = set()
+        for page in range(1, positive(settings, "max_pages", 10000) + 1):
+            rows = self.http.json("GET", base + "/1.1/space/bookings", params={**params, "page": page}, headers=headers)
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                raise SourceError("LibCal no devolvió una lista de reservas válida.")
+            if not rows:
+                return {"authentication": "ok", "date": day.isoformat(), "location_id": str(location),
+                        "category_id": str(category or ""), "rows": count, "pages": page,
+                        "statuses": dict(statuses), "campus_counts": dict(campuses), "fields": sorted(fields)}
+            fingerprint = hashlib.sha256(repr(rows).encode()).digest()
+            if fingerprint in fingerprints:
+                raise SourceError("LibCal repitió una página; no se puede confirmar la consulta completa.")
+            fingerprints.add(fingerprint)
+            for row in rows:
+                if str(row.get("lid", "")) != str(location) or (category and str(row.get("cid", "")) != str(category)):
+                    raise SourceError("LibCal devolvió reservas de otro campus/categoría; revisa los filtros.")
+                fields.update(row.keys())
+                if local_date(str(row.get("fromDate", "")), self.config.timezone) == day.isoformat():
+                    count += 1
+                    statuses[str(row.get("status", ""))] += 1
+                    campuses[str(row.get("lid", ""))] += 1
+        raise SourceError("LibCal alcanzó max_pages antes de completar la prueba.")
+
     def fetch(self, interval):
+        if interval.start < current_date(self.config.timezone):
+            raise ConfigError("LibCal ignora fechas pasadas en /space/bookings. No se puede extraer ese histórico con este endpoint; "
+                              "usa una exportación histórica o una fuente documentada que lo permita.")
         settings = self.config.raw.get("libcal", {})
         base = https_url(required(settings, "base_url", "libcal"))
         endpoint = required(settings, "bookings_path", "libcal")
@@ -49,10 +111,10 @@ class LibCalConnector:
         if any(not isinstance(value, str) or "REPLACE" in value for value in fields.values()):
             raise ConfigError("Reemplaza los campos de ejemplo de libcal.fields por los de tu instancia.")
         categories = settings.get("categories", [])
-        if {item.get("name") for item in categories} != CATEGORY_NAMES or len(categories) != 3:
-            raise ConfigError("Configura exactamente las tres categorías del piloto de LibCal.")
+        if not categories or any(item.get("name") not in CATEGORY_NAMES for item in categories):
+            raise ConfigError("Configura categorías de Computadoras y laptops, Espacios grupales o Kindle; puedes repetir grupos por campus.")
         ids = [required(item, "id", "libcal.categories") for item in categories]
-        if len(set(ids)) != 3:
+        if len(set(ids)) != len(ids):
             raise ConfigError("Los identificadores de categorías deben ser distintos.")
         templates = settings.get("query", {})
         if not templates or not any("{date}" in str(value) for value in templates.values()):
@@ -79,9 +141,9 @@ class LibCalConnector:
                 if type(page_start) is not int or page_start < 0:
                     raise ConfigError("libcal.page_start debe ser un entero no negativo.")
                 for index in range(positive(settings, "max_pages", 10000)):
-                    variables = {"date": day.isoformat(), "end_date": end.isoformat(), "days": days,
+                    variables = {"date": day.isoformat(), "end_date": end.isoformat(), "days": days - 1,
                                  "category_id": category["id"], "limit": limit, "offset": offset,
-                                 "page": index + page_start}
+                                 "page": index + page_start, "location_id": category.get("location_id", "")}
                     try:
                         params = {key: str(value).format(**variables) for key, value in templates.items()}
                     except (KeyError, ValueError):
@@ -122,6 +184,9 @@ class LibCalConnector:
         timezone = self.config.timezone
         if fields.get("category_id") and mapped(row, fields, "category_id", required=True) != category["id"]:
             raise SourceError("LibCal devolvió una reserva de otra categoría; revisa el filtro configurado.")
+        site_id = mapped(row, fields, "site_id")
+        if category.get("location_id") and site_id and site_id != str(category["location_id"]):
+            raise SourceError("LibCal devolvió una reserva de otro campus; revisa la categoría y location_id.")
         starts_at = timestamp(mapped(row, fields, "starts_at", required=True), timezone)
         ends_at = timestamp(mapped(row, fields, "ends_at", required=True), timezone)
         if ends_at < starts_at:
@@ -131,6 +196,7 @@ class LibCalConnector:
             activity_date=local_date(starts_at, timezone), user_id=mapped(row, fields, "user_id"),
             resource_id=mapped(row, fields, "resource_id", required=True),
             resource_name=mapped(row, fields, "resource_name"), site=mapped(row, fields, "site"),
+            site_id=site_id,
             status=mapped(row, fields, "status", required=True), category=category["name"],
             starts_at=starts_at, ends_at=ends_at,
             check_in=timestamp(mapped(row, fields, "check_in"), timezone),

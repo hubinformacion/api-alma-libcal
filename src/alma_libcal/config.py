@@ -1,4 +1,6 @@
 import os
+import re
+import shlex
 import tomllib
 from dataclasses import dataclass
 from datetime import date
@@ -7,6 +9,34 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .errors import ConfigError
+
+
+def load_env(path):
+    """Load single-line KEY=value entries without executing shell code."""
+    if not path.exists():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
+    except (OSError, UnicodeError):
+        raise ConfigError("No se pudo leer .env; revisa permisos y codificación UTF-8.") from None
+    values = {}
+    for number, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, separator, value = line.partition("=")
+        key = key.strip()
+        if not separator or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            raise ConfigError(f"Formato inválido en .env, línea {number}; usa NOMBRE=valor.")
+        try:
+            parts = shlex.split(value, comments=True, posix=True)
+        except ValueError:
+            raise ConfigError(f"Comillas inválidas en .env, línea {number}.") from None
+        values[key] = " ".join(parts)
+    for key, value in values.items():
+        os.environ.setdefault(key, value)
 
 
 def required(table: dict, key: str, context: str) -> str:
@@ -60,6 +90,7 @@ def load_config(path: Path) -> Config:
         ZoneInfo(timezone)
         start = date.fromisoformat(project.get("start_date", "2026-10-06"))
         base = path.resolve().parent
+        load_env(base / ".env")
         database = Path(project.get("database", "data/pilot.sqlite3")).expanduser()
         if not database.is_absolute():
             database = base / database

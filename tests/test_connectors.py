@@ -44,6 +44,9 @@ class ConnectorTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.config = demo_config(Path(self.temp.name))
         self.interval = Interval(date(2026, 10, 6), date(2026, 10, 6))
+        clock = patch("alma_libcal.connectors.libcal.current_date", return_value=self.interval.start)
+        clock.start()
+        self.addCleanup(clock.stop)
         env = patch.dict(os.environ, {"DEMO_ALMA_KEY": "private-test-key", "DEMO_LIBCAL_ID": "private-test-id", "DEMO_LIBCAL_SECRET": "private-test-secret"})
         env.start()
         self.addCleanup(env.stop)
@@ -118,6 +121,73 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(result, [{"column": "Column1", "heading": "", "type": ""}])
         self.assertNotIn("private-user", repr(result))
 
+    def test_alma_inspection_without_filter_and_bad_catalog_prefix(self):
+        http = QueueHTTP([xml_page()])
+        AlmaConnector(self.config, http, "prestamos").inspect(self.interval, without_filter=True)
+        self.assertNotIn("filter", http.calls[0][2]["params"])
+        self.config.raw["alma"]["prestamos"]["report_path"] = "/Shared Folders/Pilot/Loans"
+        with self.assertRaisesRegex(ConfigError, "/shared/"):
+            AlmaConnector(self.config, QueueHTTP([]), "prestamos").inspect(self.interval)
+
+    def test_alma_http_500_suggests_safe_path_and_filter_diagnostics(self):
+        http = QueueHTTP([SourceError("La API respondió HTTP 500; revisa acceso y configuración.")])
+        with self.assertRaisesRegex(SourceError, "without-filter") as caught:
+            AlmaConnector(self.config, http, "prestamos").inspect(self.interval)
+        self.assertNotIn("private-test-key", str(caught.exception))
+
+    def test_internal_use_without_user_is_not_an_identity_error(self):
+        fields = {"loan_id": "id", "activity_date": "date", "in_house_loan_indicator": "internal"}
+        connector = AlmaConnector(self.config, QueueHTTP([]), "prestamos")
+        record = connector.normalize({"id": "L1", "date": "2026-10-06", "internal": "Y"}, fields)
+        from alma_libcal.models import HEADERS
+        values = dict(zip(HEADERS, record.values()))
+        self.assertEqual(values["usage_type"], "Uso interno")
+        self.assertEqual(values["user_id"], "")
+        self.assertEqual(values["user_id_missing"], "no aplica")
+        unknown = connector.normalize({"id": "L2", "date": "2026-10-06"}, fields)
+        self.assertEqual(dict(zip(HEADERS, unknown.values()))["user_id_missing"], "sí")
+
+    def test_renewals_on_same_day_in_different_campuses_remain_distinct(self):
+        fields = {"loan_id": "id", "activity_date": "date", "quantity": "count", "site_id": "campus"}
+        connector = AlmaConnector(self.config, QueueHTTP([]), "renovaciones")
+        row = {"id": "L1", "date": "2026-10-06", "count": "1", "campus": "CUS"}
+        first = connector.normalize(row, fields)
+        second = connector.normalize({**row, "campus": "HYO"}, fields)
+        self.assertNotEqual(first.record_id, second.record_id)
+        self.assertEqual(first.site_id, "CUS")
+
+    def test_libcal_discovery_uses_category_endpoint_for_location_ids(self):
+        http = QueueHTTP([{"access_token": "test"}, [{"lid": 20114, "categories": []}]])
+        LibCalConnector(self.config, http).discover(locations=[20114, 20109])
+        self.assertTrue(http.calls[1][1].endswith("/space/categories/20114,20109"))
+
+    def test_libcal_probe_counts_all_pages_without_exposing_users_or_answers(self):
+        rows = [{"lid": 20114, "cid": 100, "fromDate": "2026-10-06T10:00:00-05:00", "status": "Confirmed",
+                 "email": "private-user", "q43": "private-answer"}]
+        http = QueueHTTP([{"access_token": "private-token"}, rows, []])
+        summary = LibCalConnector(self.config, http).check_bookings(self.interval.start, 20114, 100)
+        self.assertEqual(summary["rows"], 1)
+        self.assertIn("q43", summary["fields"])
+        self.assertNotIn("private", repr(summary))
+        self.assertEqual(http.calls[-1][2]["params"]["page"], 2)
+        self.assertEqual(http.calls[1][2]["params"]["days"], 0)
+
+    def test_libcal_rejects_past_dates_before_network(self):
+        http = QueueHTTP([])
+        with patch("alma_libcal.connectors.libcal.current_date", return_value=date(2026, 10, 7)):
+            with self.assertRaisesRegex(ConfigError, "histórico"):
+                LibCalConnector(self.config, http).fetch(self.interval)
+            with self.assertRaisesRegex(ConfigError, "pasadas"):
+                LibCalConnector(self.config, http).check_bookings(self.interval.start, 20114)
+        self.assertEqual(http.calls, [])
+
+    def test_libcal_allows_same_group_at_several_campuses(self):
+        self.config.raw["libcal"]["categories"] = [
+            {"id": "101", "name": "Computadoras y laptops", "location_id": "20114"},
+            {"id": "104", "name": "Computadoras y laptops", "location_id": "20109"}]
+        http = QueueHTTP([{"access_token": "test"}, [], []])
+        self.assertEqual(LibCalConnector(self.config, http).fetch(self.interval).records, [])
+
     def test_date_filter_escapes_column_and_uses_requested_interval(self):
         expression = date_filter('"Dates"."A & B"', self.interval)
         self.assertIn("A &amp; B", expression)
@@ -182,6 +252,16 @@ class ConnectorTests(unittest.TestCase):
         fields = {**self.config.raw["libcal"]["fields"], "category_id": "cid"}
         with self.assertRaisesRegex(SourceError, "otra categoría"):
             LibCalConnector(self.config, DemoHTTP()).normalize(first, fields, {"id": "102", "name": "Espacios grupales"})
+
+    def test_libcal_location_ids_are_preserved_and_wrong_campus_is_rejected(self):
+        first = json.loads(fixture("libcal_bookings.json"))[0]
+        first["lid"] = 20114
+        fields = {**self.config.raw["libcal"]["fields"], "site_id": "lid"}
+        connector = LibCalConnector(self.config, DemoHTTP())
+        category = {"id": "101", "name": "Computadoras y laptops", "location_id": "20114"}
+        self.assertEqual(connector.normalize(first, fields, category).site_id, "20114")
+        with self.assertRaisesRegex(SourceError, "otro campus"):
+            connector.normalize(first, fields, {**category, "location_id": "20109"})
 
     def test_libcal_timezone_and_end_before_start(self):
         first = json.loads(fixture("libcal_bookings.json"))[0]

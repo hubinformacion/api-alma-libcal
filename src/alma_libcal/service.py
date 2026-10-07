@@ -20,7 +20,7 @@ def extract(store, connectors, interval, report=print):
             failures.append(dataset)
             continue
         successful.append(dataset)
-        missing = sum(not record.user_id for record in batch.records)
+        missing = sum(not record.user_id and not (dataset == "prestamos" and record.in_house_loan_indicator == "Y") for record in batch.records)
         report(f"{dataset}: {len(batch.records)} filas extraídas; {store.count(dataset)} en histórico; {missing} sin código de usuario.")
     return successful, failures
 

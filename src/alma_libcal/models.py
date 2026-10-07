@@ -11,6 +11,7 @@ HEADERS = (
     "record_id", "activity_date", "user_id", "resource_id", "resource_name", "site",
     "status", "category", "starts_at", "ends_at", "check_in", "check_out", "quantity",
     "source_updated_at", "source_available_at", "user_id_missing",
+    "site_id", "in_house_loan_indicator", "usage_type",
 )
 
 
@@ -105,6 +106,8 @@ class Record:
     quantity: int = 1
     source_updated_at: str = ""
     source_available_at: str = ""
+    site_id: str = ""
+    in_house_loan_indicator: str = ""
 
     def __post_init__(self):
         if self.dataset not in DATASETS or not self.record_id:
@@ -116,7 +119,9 @@ class Record:
 
     def values(self) -> list:
         values = asdict(self)
-        values["user_id_missing"] = "sí" if not self.user_id else "no"
+        internal = self.dataset == "prestamos" and self.in_house_loan_indicator == "Y"
+        values["user_id_missing"] = "no aplica" if internal and not self.user_id else ("sí" if not self.user_id else "no")
+        values["usage_type"] = ("Uso interno" if internal else "Préstamo") if self.dataset == "prestamos" else ""
         return [values[name] for name in HEADERS]
 
 
