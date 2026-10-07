@@ -7,9 +7,10 @@
 - Reporte `Loans`: IDs sin duplicados en el día revisado; inspección API con fechas y mapeo básico confirmados.
 - Reporte `Renewals`: columnas y mapeo básico confirmados, incluidos cantidad y campus de renovación.
 - LibCal: ubicaciones y 14 categorías de los seis campus configuradas, con IDs y formularios de referencia.
-- Formularios LibCal: asignación de correos de integrantes 2 y 3 confirmada e implementada; queda revisar Los Olivos.
+- Formularios LibCal: asignación de correos de integrantes 2 y 3 confirmada e implementada; reservas de Los Olivos verificadas aunque categoría y recurso informen formulario 0.
 - Prueba de salas de Cusco del 7 de octubre: 66 reservas, 65 confirmadas y una cancelada por administrador.
-- Almacenamiento de correo original de Alma/LibCal y participantes de salas implementado.
+- Los Olivos: prueba directa del 7 de octubre con 125 reservas, 101 confirmadas y 24 canceladas por administrador.
+- Almacenamiento de correo original, participantes de salas y puesto reservado (seat_id/seat_name) implementado.
 - Google Sheets: configuración completada según tu confirmación.
 - Código y guías guardados en Git.
 
@@ -20,10 +21,10 @@ Falta validar Renewals con fechas, comprobar las demás categorías de LibCal y 
 | Paso | Qué falta | Dónde hacerlo |
 | --- | --- | --- |
 | 01 | Validar el filtro de fecha de Renewals y completar el esquema de ambos reportes | [Alma](01-alma.md): Analytics, terminal y `config.toml` |
-| 02 | Comparar reservas por campus/categoría/estado y revisar el formulario de Los Olivos | [LibCal](02-libcal.md): terminal y `config.toml` |
+| 02 | Comparar conteos por campus/categoría/estado y verificar las demás categorías | [LibCal](02-libcal.md): terminal y `config.toml` |
 | 03 | Ampliar el extractor, comprobar conteos y publicar una muestra en Google | [Validación y publicación](03-programa-y-sheets.md) |
 
-**El siguiente paso es revisar los recursos de computadoras de Los Olivos y comparar los conteos por campus/categoría, siguiendo 02.** También queda validar el filtro de fecha de Renewals en 01. No recrees claves, reportes ni la autorización de Google.
+**El siguiente paso es comparar los conteos de Cusco y Los Olivos con los reportes administrativos y validar las demás categorías, siguiendo 02.** También queda validar el filtro de fecha de Renewals en 01. No recrees claves, reportes ni la autorización de Google.
 
 ## Después del piloto
 

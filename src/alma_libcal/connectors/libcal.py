@@ -210,4 +210,6 @@ class LibCalConnector:
             booking_form_id=form_id if form_id != "0" else "",
             booking_form_answer_1=mapped(row, answers, "booking_form_answer_1"),
             booking_form_answer_2=mapped(row, answers, "booking_form_answer_2"),
+            seat_id=mapped(row, fields, "seat_id"),
+            seat_name=mapped(row, fields, "seat_name"),
         )

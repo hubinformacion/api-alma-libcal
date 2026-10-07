@@ -88,7 +88,7 @@ class PipelineTests(unittest.TestCase):
     def test_participant_emails_survive_storage_and_publication_without_extra_bookings(self):
         booking = Record("reservas", "B1", "2026-10-06", source_user_email="one@example.invalid",
                          booking_form_id="8253", booking_form_answer_1="two@example.invalid",
-                         booking_form_answer_2="three@example.invalid")
+                         booking_form_answer_2="three@example.invalid", seat_id="000123", seat_name="Puesto 01")
         self.save(booking)
         self.save(replace(booking, status="Cancelled by Admin"))
         self.assertEqual(self.store.count("reservas"), 1)
@@ -100,17 +100,20 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(row["booking_form_answer_1"], "two@example.invalid")
         self.assertEqual(row["booking_form_answer_2"], "three@example.invalid")
         self.assertEqual(row["status"], "Cancelled by Admin")
+        self.assertEqual(row["seat_id"], "000123")
+        self.assertEqual(row["seat_name"], "Puesto 01")
 
     def test_old_payloads_load_with_empty_new_contact_fields(self):
         self.save(self.record)
         payload = dict(self.store.db.execute("SELECT payload FROM records").fetchone())["payload"]
         old = json.loads(payload)
-        for key in ("source_user_email", "booking_form_id", "booking_form_answer_1", "booking_form_answer_2"):
+        for key in ("source_user_email", "booking_form_id", "booking_form_answer_1", "booking_form_answer_2", "seat_id", "seat_name"):
             old.pop(key)
         with self.store.db:
             self.store.db.execute("UPDATE records SET payload=?", (json.dumps(old),))
         self.assertEqual(self.store.records("prestamos")[0].source_user_email, "")
         self.assertEqual(self.store.records("prestamos")[0].booking_form_answer_1, "")
+        self.assertEqual(self.store.records("prestamos")[0].seat_id, "")
 
     def test_renewal_quantity_updates_instead_of_accumulating(self):
         renewal = Record("renovaciones", "L1:2026-10-06", "2026-10-06", quantity=2)

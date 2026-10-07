@@ -289,6 +289,22 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(record.source_user_email, "Reader@example.invalid")
         self.assertEqual(record.user_id, "")
 
+    def test_seat_booking_preserves_position_and_contact_with_no_category_form(self):
+        fields = {**self.config.raw["libcal"]["fields"], "source_user_email": "email",
+                  "seat_id": "seat_id", "seat_name": "seat_name"}
+        row = {**json.loads(fixture("libcal_bookings.json"))[0], "eid": 172123,
+               "seat_id": 123, "seat_name": "Puesto 01", "itemName": "Dispositivos",
+               "email": "reader@example.invalid", "q25458": "phone", "q25536": "Acepto"}
+        category = {"id": "42375", "name": "Computadoras y laptops", "form_id": "0"}
+        record = LibCalConnector(self.config, DemoHTTP()).normalize(row, fields, category)
+        self.assertEqual(record.resource_id, "172123")
+        self.assertEqual(record.resource_name, "Dispositivos")
+        self.assertEqual(record.seat_id, "123")
+        self.assertEqual(record.seat_name, "Puesto 01")
+        self.assertEqual(record.source_user_email, "reader@example.invalid")
+        self.assertEqual(record.booking_form_id, "")
+        self.assertEqual(record.booking_form_answer_1, "")
+
     def test_libcal_location_ids_are_preserved_and_wrong_campus_is_rejected(self):
         first = json.loads(fixture("libcal_bookings.json"))[0]
         first["lid"] = 20114

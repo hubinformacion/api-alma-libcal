@@ -79,6 +79,8 @@ include_denied = 1
 # Add documented static parameters here if required to include cancellations.
 
 [libcal.fields]
+seat_id = "seat_id"
+seat_name = "seat_name"
 source_user_email = "email"
 booking_id = "bookId"
 starts_at = "fromDate"

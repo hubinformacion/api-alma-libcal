@@ -19,7 +19,7 @@ Los nombres Computadoras y Computadoras y Laptops se agrupan como **Computadoras
 
 No necesitas volver a buscar ni introducir estos IDs. Los campos `location_name`, `source_name` y `form_id` del TOML conservan metadatos para la ampliación; el extractor básico todavía no exporta todos ellos.
 
-## 2. Formularios confirmados; excepción de Los Olivos pendiente
+## 2. Formularios y reservas de Los Olivos confirmados
 
 Ambos formularios están registrados en `[libcal.forms]`. La asignación confirmada de preguntas a las columnas del reporte ya está implementada:
 
@@ -37,13 +37,15 @@ No hay una pregunta de DNI en estos formularios. La persona que reserva se ident
 
 La selección depende del formulario 8253 y de los IDs de pregunta, no del orden de la respuesta. En computadoras/Kindle, esas dos columnas quedan vacías. Los campos ausentes también quedan vacíos; no se sustituyen por celular ni aceptación de términos.
 
-Computadoras de Los Olivos devuelve `formid = 0`. Consulta sus recursos para verificar si informan un formulario específico:
+### Los Olivos: verificado con reservas reales
 
-```bash
-.venv/bin/python -m alma_libcal discover-libcal --category 42375
-```
+La categoría 42375 y su recurso **172123 — Dispositivos** informan `formid = 0`. El recurso declara capacidad 19 y `isBookableAsWhole = false`; no deducimos de esa capacidad cuántos dispositivos físicos hay.
 
-El 0 de la categoría no demuestra que las reservas carezcan de preguntas; no lo consultes como un formulario válido. No hace falta volver a consultar 8253 y 8254.
+La prueba directa del **7 de octubre de 2026** devolvió **125 reservas**: **101 Confirmed** y **24 Cancelled by Admin**, con paginación completada. Incluye `email`, `q25458` y `q25536`, así que el valor 0 no significa que falten preguntas. La ubicación había informado formulario 8254; no asignamos un formulario efectivo a la reserva solo por semejanza de campos.
+
+La respuesta también incluye `seat_id` y `seat_name`. Ya se guardan y exportan junto al ID/nombre del recurso: permiten distinguir el puesto reservado dentro de Dispositivos. Para registros sin puesto, ambos campos quedan vacíos. Las dos respuestas de integrantes siguen vacías en computadoras.
+
+No necesitas crear ni cambiar el formulario de Los Olivos. Falta comparar los conteos con su reporte administrativo y ampliar los cálculos del reporte final.
 
 ## 3. Prueba de salas de Cusco confirmada; demás categorías pendientes
 
@@ -69,7 +71,7 @@ El comando consulta todas las páginas y muestra `authentication`, número de fi
 
 Con las respuestas de salas y su asignación ya confirmadas, quedan estos puntos:
 
-- Comprobar los campos de las demás categorías/campus y resolver el formulario de computadoras de Los Olivos.
+- Comprobar los campos y conteos de las demás categorías/campus; salas de Cusco y computadoras de Los Olivos ya respondieron correctamente.
 - Si hay un identificador institucional real; hasta entonces `user_id` permanece vacío.
 - Qué significa `booking_confirmation` en tu reporte.
 - Si `account` contiene un correo: el YAML no lo define como tal.
