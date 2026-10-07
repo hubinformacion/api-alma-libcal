@@ -147,6 +147,14 @@ class ConnectorTests(unittest.TestCase):
         unknown = connector.normalize({"id": "L2", "date": "2026-10-06"}, fields)
         self.assertEqual(dict(zip(HEADERS, unknown.values()))["user_id_missing"], "sí")
 
+    def test_existing_internal_use_formula_does_not_create_a_fictitious_user(self):
+        fields = {"loan_id": "id", "activity_date": "date", "user_id": "user", "in_house_loan_indicator": "internal"}
+        connector = AlmaConnector(self.config, QueueHTTP([]), "prestamos")
+        row = {"id": "L1", "date": "2026-10-06", "internal": "Y", "user": "Uso interno"}
+        self.assertEqual(connector.normalize(row, fields).user_id, "")
+        self.assertEqual(connector.normalize({**row, "internal": "N", "user": "000123"}, fields).user_id, "000123")
+        self.assertEqual(connector.normalize({**row, "user": "000123"}, fields).user_id, "000123")
+
     def test_renewals_on_same_day_in_different_campuses_remain_distinct(self):
         fields = {"loan_id": "id", "activity_date": "date", "quantity": "count", "site_id": "campus"}
         connector = AlmaConnector(self.config, QueueHTTP([]), "renovaciones")

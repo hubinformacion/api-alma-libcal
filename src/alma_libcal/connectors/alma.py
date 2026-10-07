@@ -166,12 +166,16 @@ class AlmaConnector:
         indicator = mapped(row, fields, "in_house_loan_indicator").upper()
         if indicator not in ("", "Y", "N"):
             raise SourceError("In House Loan Indicator debe ser Y, N o vacío; conserva el indicador original.")
+        user_id = mapped(row, fields, "user_id")
+        # Existing Analytics formulas use this activity label instead of a user ID.
+        if not renewal and indicator == "Y" and user_id.casefold() == "uso interno":
+            user_id = ""
         record_id = f"{loan_id}:{day}:{site_id}" if renewal and site_id else (f"{loan_id}:{day}" if renewal else loan_id)
         return Record(
             dataset=self.dataset,
             record_id=record_id,
             activity_date=day,
-            user_id=mapped(row, fields, "user_id"),
+            user_id=user_id,
             resource_id=mapped(row, fields, "resource_id"),
             resource_name=mapped(row, fields, "resource_name"),
             site=mapped(row, fields, "site"),

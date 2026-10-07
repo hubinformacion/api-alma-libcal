@@ -19,15 +19,18 @@ date_column = '"Loan Date"."Loan Date"'
 # After inspection, also map site_id to Campus Code and
 # in_house_loan_indicator to the raw In House Loan Indicator (Y/N).
 [alma.prestamos.fields]
-loan_id = "Column1"
-activity_date = "Column2"
-user_id = "Column3"
-resource_id = "Column4"
-resource_name = "Column5"
-site = "Column6"
-status = "Column7"
-source_updated_at = "Column8"
-source_available_at = "Column9"
+# Mapeo verificado con la inspección de Loans compartida por el usuario.
+loan_id = "Column11"
+activity_date = "Column7"
+user_id = "Column18" # Fórmula actual; se elimina la etiqueta de usos internos.
+resource_id = "Column10"
+resource_name = "Column16"
+site = "Column2"
+site_id = "Column1"
+status = "Column12"
+in_house_loan_indicator = "Column9"
+source_updated_at = "" # El análisis no entrega esta columna.
+source_available_at = ""
 
 [alma.renovaciones]
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"

@@ -2,44 +2,30 @@
 
 Ya tienes Loans y comprobaste que `loan_id` no se repite en el día revisado. Las rutas están introducidas en `config.toml`; no recrees el análisis ni la clave.
 
-## 1. Validar la consulta que devolvía HTTP 500
+## 1. Loans: consulta y mapeo confirmados
 
-**Dónde:** terminal de Ubuntu, dentro del proyecto.
+La inspección con fechas devolvió las columnas del reporte. No hace falta repetir el diagnóstico HTTP 500. Se actualizó `[alma.prestamos.fields]` de `config.toml` con este mapa:
 
-```bash
-.venv/bin/python -m alma_libcal inspect-alma --dataset prestamos --without-filter
-```
-
-Muestra columnas, sin imprimir usuarios. Se corrigió el prefijo de las rutas de `/Shared Folders/` a `/shared/`, pero aún falta confirmar que la consulta funciona.
-
-- Si falla también sin filtro, revisa el resto de la ruta, la región y los permisos de la clave Analytics/Production/Read-only.
-- Si funciona, prueba el día que revisaste en Analytics; sustituye ambas fechas del ejemplo:
-
-```bash
-.venv/bin/python -m alma_libcal inspect-alma --dataset prestamos --from 2026-10-06 --to 2026-10-06
-```
-
-Si solo falla con fechas, verifica `date_column` y el filtro `is prompted` del análisis.
-
-## 2. Separar usos internos e identidad
-
-**Dónde:** Loans → Edit → Criteria.
-
-Conserva dos columnas independientes:
-
-| Columna | Campo de Analytics |
+| Campo | Columna API |
 | --- | --- |
-| Identificador original | Borrower Details → User Primary Identifier |
-| Indicador de uso interno | Loan Details → In House Loan Indicator |
+| ID del préstamo | Column11 |
+| Fecha | Column7 |
+| Identificador de usuario, fórmula actual | Column18 |
+| ID del ejemplar | Column10 |
+| Título | Column16 |
+| Campus / código de campus | Column2 / Column1 |
+| Estado | Column12 |
+| Indicador de uso interno | Column9 |
 
-No sustituyas el identificador por «Uso interno» en la columna que extraeremos. Puedes conservar tu fórmula anterior para el reporte visual. Si quieres una etiqueta separada:
+`Column0` es una columna auxiliar y no se importa. El reporte no entrega fechas de actualización; sus mapas se dejaron vacíos para evitar interpretar Barcode como una fecha.
 
-```sql
-CASE WHEN "Loan Details"."In House Loan Indicator" = 'Y'
-THEN 'Uso interno' ELSE 'Préstamo' END
-```
+## 2. Identidad y campos pendientes de almacenamiento
 
-El programa conserva el indicador y calcula `usage_type`. Un uso interno sin usuario no es un error de identificación ni genera un usuario ficticio. No lo excluyas mediante filtros de correo/identificador no nulos.
+Las fórmulas de Column18 (identificador) y Column19 (correo) sustituyen el valor por «Uso interno» cuando el indicador es Y. El programa ya deja vacío el identificador ficticio de esos registros y conserva la clasificación por el indicador. No necesitas rehacer el reporte para continuar el piloto básico.
+
+Para el reporte completo preferimos identificador y correo originales, sin mezclar etiquetas ni aplicar LOWER al identificador. Cuando preparemos esa ampliación, revisaremos esas fórmulas. **Si cambias fórmulas o columnas, vuelve a inspeccionar antes de importar:** el orden de ColumnN puede cambiar.
+
+También quedaron identificados Barcode (Column8), Loan Time (Column13), Material Type (Column14), MMS Id (Column15), Item Policy (Column17), correo (Column19) y el módulo (Column3–Column5). El extractor todavía debe ampliarse para almacenar todos esos campos; no basta con añadir entradas al TOML.
 
 ## 3. Revisar renovaciones por campus
 
@@ -78,7 +64,7 @@ Ejecuta también la inspección de Renewals:
 .venv/bin/python -m alma_libcal inspect-alma --dataset renovaciones --without-filter
 ```
 
-Con la salida de ambas inspecciones, actualizaremos los `ColumnN` de `[alma.prestamos.fields]` y `[alma.renovaciones.fields]`. No se deducen del orden visual y los actuales siguen siendo ejemplos.
+Loans ya tiene su mapeo verificado para el esquema básico. Falta la salida de Renewals para actualizar `[alma.renovaciones.fields]`, que todavía contiene ejemplos. No reutilices el orden de Loans: cada análisis puede devolver columnas diferentes.
 
 | Mapeo del programa | Loans | Renewals |
 | --- | --- | --- |
