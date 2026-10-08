@@ -16,6 +16,33 @@ HEADERS = (
     "seat_id", "seat_name",
 )
 
+# Each report exposes its own vocabulary; storage keys remain internal.
+ALMA_ITEM_FIELDS = {
+    "loan_id": "loan_id", "source_user_id": "user_id", "source_user_email": "source_user_email",
+    "item_id": "resource_id", "item_mms_id": "item_mms_id", "item_barcode": "item_barcode",
+    "item_material_type": "item_material_type", "item_policy": "item_policy", "item_title": "resource_name",
+}
+LOAN_FIELDS = {
+    **ALMA_ITEM_FIELDS,
+    "loan_date": "activity_date", "loan_time": "loan_time", "in_house_loan_indicator": "in_house_loan_indicator",
+    "loan_campus_code": "site_id", "loan_campus": "site", "loan_library_code": "loan_library_code",
+    "loan_desk_code": "loan_desk_code", "loan_desk_name": "loan_desk_name",
+    "loan_desk_description": "loan_desk_description", "loan_status": "status",
+}
+RENEWAL_FIELDS = {
+    **ALMA_ITEM_FIELDS,
+    "renewal_date": "activity_date", "renewal_campus_code": "site_id", "renewal_campus_name": "site",
+    "renewal_quantity": "quantity", "loan_status": "status",
+}
+RESERVATION_FIELDS = {name: name for name in HEADERS if name not in (
+    "in_house_loan_indicator", "usage_type",
+)}
+REPORT_FIELDS = {"prestamos": LOAN_FIELDS, "renovaciones": RENEWAL_FIELDS, "reservas": RESERVATION_FIELDS}
+
+
+def report_headers(dataset):
+    return list(REPORT_FIELDS[dataset])
+
 
 @dataclass(frozen=True)
 class Interval:
@@ -116,6 +143,16 @@ class Record:
     booking_form_answer_2: str = ""
     seat_id: str = ""
     seat_name: str = ""
+    loan_id: str = ""
+    item_mms_id: str = ""
+    item_barcode: str = ""
+    item_material_type: str = ""
+    item_policy: str = ""
+    loan_time: str = ""
+    loan_library_code: str = ""
+    loan_desk_code: str = ""
+    loan_desk_name: str = ""
+    loan_desk_description: str = ""
 
     def __post_init__(self):
         if self.dataset not in DATASETS or not self.record_id:
@@ -131,6 +168,14 @@ class Record:
         values["user_id_missing"] = "no aplica" if internal and not self.user_id else ("sí" if not self.user_id else "no")
         values["usage_type"] = ("Uso interno" if internal else "Préstamo") if self.dataset == "prestamos" else ""
         return [values[name] for name in HEADERS]
+
+    def report_values(self) -> list:
+        values = asdict(self)
+        # Old snapshots did not store the original loan ID separately.
+        if self.dataset in ("prestamos", "renovaciones") and not self.loan_id:
+            values["loan_id"] = self.record_id.split(":", 1)[0]
+        values["user_id_missing"] = "sí" if not self.user_id else "no"
+        return [values[name] for name in REPORT_FIELDS[self.dataset].values()]
 
 
 @dataclass

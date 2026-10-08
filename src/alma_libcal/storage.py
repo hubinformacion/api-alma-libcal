@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import PilotError
-from .models import HEADERS, Record
+from .models import Record, report_headers
 
 
 def now():
@@ -104,7 +104,7 @@ class Store:
             "SELECT payload FROM records WHERE dataset=? ORDER BY activity_date,record_id", (dataset,))]
 
     def table(self, dataset):
-        return [list(HEADERS)] + [record.values() for record in self.records(dataset)]
+        return [report_headers(dataset)] + [record.report_values() for record in self.records(dataset)]
 
     def count(self, dataset):
         return self.db.execute("SELECT COUNT(*) FROM records WHERE dataset=?", (dataset,)).fetchone()[0]

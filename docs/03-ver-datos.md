@@ -5,7 +5,7 @@
 Ya generamos estas copias locales para la primera comparación:
 
 - `data/verificacion/prestamos-2026-10-07.csv`: 198 filas.
-- `data/verificacion/renovaciones-2026-10-07.csv`: 10 filas; suma de quantity igual a 10.
+- `data/verificacion/renovaciones-2026-10-07.csv`: 10 filas; suma de renewal_quantity igual a 10.
 - `data/verificacion/reservas-2026-10-08.csv`: 3 filas al momento de consultar.
 - `data/verificacion/resumen.csv`: conteos y suma de quantity por conjunto, fecha, campus, categoría y estado.
 
@@ -41,7 +41,7 @@ Usa **SQLite Viewer**, de **qwtel**, identificador `qwtel.sqlite-viewer`, dispon
 4. Selecciona `records` para ver operaciones; `runs` contiene ejecuciones y errores; `snapshots`, el estado de extracción/publicación.
 5. Filtra `dataset` por `prestamos`, `renovaciones` o `reservas` y `activity_date` por el día que comparas.
 
-La tabla `records` contiene ID y fecha como columnas; los demás atributos están juntos en `payload`, un texto JSON. Esto es la estructura actual del almacenamiento. Tras otra extracción, cierra y vuelve a abrir el archivo para refrescar el visor. La compatibilidad depende de la versión de Antigravity y su catálogo; si no aparece la extensión, utiliza la opción siguiente.
+La tabla `records` contiene ID y fecha como columnas; los demás atributos están juntos en `payload`, un texto JSON. Estos nombres internos permiten gestionar el histórico; no son los encabezados del CSV o de Sheets. Cada reporte de Alma tiene su propio esquema de salida, detallado en la guía 01. Tras otra extracción, cierra y vuelve a abrir el archivo para refrescar el visor. La compatibilidad depende de la versión de Antigravity y su catálogo; si no aparece la extensión, utiliza la opción siguiente.
 
 ## Ver cada atributo en una columna de Sheets
 
@@ -53,8 +53,8 @@ La autorización de Google ya está preparada. Después de guardar una muestra, 
 .venv/bin/python -m alma_libcal publish --only reservas
 ```
 
-Ejecuta solo el conjunto que quieras revisar. Abre tu hoja habitual de Google Sheets y la pestaña con ese nombre. Allí correo, fechas, recurso, campus, estado y cantidad aparecen en columnas separadas. Para renovaciones suma `quantity`; para préstamos/reservas cuenta registros filtrados por fecha y campus.
+Ejecuta solo el conjunto que quieras revisar. Abre tu hoja habitual de Google Sheets y la pestaña con ese nombre. Allí correo, fechas, recurso, campus, estado y cantidad aparecen en columnas separadas. Para renovaciones suma `renewal_quantity`; para préstamos/reservas cuenta registros filtrados por fecha y campus.
 
 **La publicación reemplaza la pestaña seleccionada con su histórico local y actualiza `control`.** No la uses como lugar de edición manual de datos. `publish` no vuelve a consultar las APIs y las fechas de la última extracción no limitan lo publicado.
 
-SQLite y los archivos locales con credenciales están excluidos de Git. La extracción todavía contiene un esquema básico, no todas las columnas del reporte final.
+SQLite y los archivos locales con credenciales están excluidos de Git. Alma ya exporta las columnas indicadas en la guía 01 para cada conjunto. LibCal todavía tiene pendientes algunos cálculos y campos del reporte final.

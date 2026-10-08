@@ -13,7 +13,7 @@ Empieza por [00 — Empieza aquí](docs/00-inicio.md). No necesitas conocer Pyth
 
 Los registros guardados están en `data/pilot.sqlite3`. Los comandos de inspección y comprobación solo muestran resultados en la terminal; las extracciones con `--extract-only` sí guardan filas. La publicación a Google es un paso adicional.
 
-Todavía faltan algunos atributos del reporte final, la fuente histórica de LibCal y la automatización. La API LibCal utilizada no admite fechas pasadas.
+Las cantidades de la muestra inicial están validadas y Alma tiene esquemas de salida propios para préstamos y renovaciones. Todavía faltan algunos campos finales de LibCal, la fuente histórica de LibCal y la automatización. La API LibCal utilizada no admite fechas pasadas.
 
 ## Para desarrollo
 

@@ -17,6 +17,15 @@ date_column = '"Loan Date"."Loan Date"'
 # Orden verificado para el reporte Loans actual de esta institución.
 # Si cambia el análisis, inspecciona de nuevo antes de modificar ColumnN.
 [alma.prestamos.fields]
+item_mms_id = "Column16"
+item_barcode = "Column9"
+item_material_type = "Column15"
+item_policy = "Column18"
+loan_time = "Column14"
+loan_library_code = "Column7"
+loan_desk_code = "Column4"
+loan_desk_name = "Column6"
+loan_desk_description = "Column5"
 source_user_email = "Column19"
 # Mapeo verificado de Loans sin fórmulas de usuario ni correo.
 loan_id = "Column12"
@@ -35,6 +44,10 @@ source_available_at = ""
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
 date_column = '"Renewal Date"."Renewal Date"'
 [alma.renovaciones.fields]
+item_mms_id = "Column7"
+item_barcode = "Column2"
+item_material_type = "Column6"
+item_policy = "Column9"
 source_user_email = "Column10"
 # Mapeo verificado de Renewals; clave: préstamo + fecha + campus.
 loan_id = "Column4"

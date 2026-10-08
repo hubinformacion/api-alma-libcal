@@ -39,6 +39,29 @@ class QueueHTTP:
 
 
 class ConnectorTests(unittest.TestCase):
+    def test_real_alma_column_maps_retain_item_and_desk_attributes(self):
+        import tomllib
+        example = Path(__file__).resolve().parents[1] / 'config.example.toml'
+        config = tomllib.loads(example.read_text())
+        for dataset, barcode_column, mms_column in [('prestamos','Column9','Column16'),('renovaciones','Column2','Column7')]:
+            fields = config['alma'][dataset]['fields']
+            row = {fields['loan_id']:'L1',fields['activity_date']:'2026-10-07',
+                   fields['user_id']:'000123',barcode_column:'000045',mms_column:'990000000123456789',
+                   fields['item_material_type']:'Libro',fields['item_policy']:'Domicilio'}
+            if dataset == 'renovaciones': row[fields['quantity']] = '2.0'
+            else:
+                for key in ('loan_time','loan_library_code','loan_desk_code','loan_desk_name','loan_desk_description'):
+                    row[fields[key]] = key + '-original'
+            record = AlmaConnector(self.config, QueueHTTP([]), dataset).normalize(row, fields)
+            self.assertEqual(record.loan_id, 'L1')
+            self.assertEqual(record.item_barcode, '000045')
+            self.assertEqual(record.item_mms_id, '990000000123456789')
+            self.assertEqual(record.item_material_type, 'Libro')
+            self.assertEqual(record.item_policy, 'Domicilio')
+            if dataset == 'prestamos':
+                self.assertEqual(record.loan_time, 'loan_time-original')
+                self.assertEqual(record.loan_desk_description, 'loan_desk_description-original')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

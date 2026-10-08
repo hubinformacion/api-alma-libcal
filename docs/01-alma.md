@@ -19,7 +19,7 @@ En Analytics abre el análisis **Loans** conectado a la API, aplica la misma fec
 - Usos internos: `In House Loan Indicator = Y`. La ausencia de usuario por sí sola no los identifica.
 - Algunas filas por ID: fecha, ejemplar, título, campus, estado y correo original.
 
-El programa conserva préstamos y usos internos en `prestamos`; `usage_type` permite distinguirlos.
+El programa conserva préstamos y usos internos en `prestamos`; `in_house_loan_indicator = Y` permite distinguirlos.
 
 ## 2. Guardar renovaciones del mismo día
 
@@ -27,9 +27,9 @@ El programa conserva préstamos y usos internos en `prestamos`; `usage_type` per
 .venv/bin/python -m alma_libcal sync --only renovaciones --from 2026-10-07 --to 2026-10-07 --extract-only
 ```
 
-En Analytics abre **Renewals**, usa la misma `Renewal Date` y compara la **suma de Renewals** con la **suma de quantity** en los registros guardados. El número de filas no es el total de renovaciones: una fila puede representar varias.
+En Analytics abre **Renewals**, usa la misma `Renewal Date` y compara la **suma de Renewals** con la **suma de renewal_quantity** en los registros guardados. El número de filas no es el total de renovaciones: una fila puede representar varias.
 
-Compara esa suma por campus de renovación. La clave del programa distingue préstamo, día y campus. Para ver `quantity` por columnas, sigue [03 — Ver los datos](03-ver-datos.md).
+Compara esa suma por campus de renovación. La clave del programa distingue préstamo, día y campus. Para ver `renewal_quantity` por columnas, sigue [03 — Ver los datos](03-ver-datos.md).
 
 Si falla el filtro de fechas, prueba:
 
@@ -43,4 +43,20 @@ Ese diagnóstico muestra encabezados, no cantidades. Verifica en Analytics que R
 
 Anota fecha, conjunto, campus, cantidad de Analytics y cantidad del programa. Repite la extracción del mismo día: los IDs existentes se actualizan y no deben duplicarse.
 
-Todavía no se guardan barcode, MMS ID, tipo de material, política, hora y detalles del módulo. Están identificados en los análisis y pendientes de incorporar al programa. Si cambias el orden de columnas de Analytics, debemos actualizar el mapa antes de extraer.
+Los CSV y las pestañas de Sheets tienen estructuras distintas para préstamos y renovaciones. Ya se guardan barcode, MMS ID, tipo de material, política y los detalles de hora/biblioteca/módulo disponibles en Loans. Si cambias el orden de columnas de Analytics, debemos actualizar el mapa antes de extraer.
+
+## Columnas de salida
+
+Préstamos (19 columnas):
+
+```text
+loan_id, source_user_id, source_user_email, item_id, item_mms_id, item_barcode, item_material_type, item_policy, item_title, loan_date, loan_time, in_house_loan_indicator, loan_campus_code, loan_campus, loan_library_code, loan_desk_code, loan_desk_name, loan_desk_description, loan_status
+```
+
+Renovaciones (14 columnas):
+
+```text
+loan_id, source_user_id, source_user_email, item_id, item_mms_id, item_barcode, item_material_type, item_policy, item_title, renewal_date, renewal_campus_code, renewal_campus_name, renewal_quantity, loan_status
+```
+
+`loan_id` es el ID original de Alma. La clave interna compuesta de renovación no se exporta como loan_id. Los campos vacíos de la fuente siguen vacíos. No se incluyen columnas de reservas de LibCal en estos reportes.

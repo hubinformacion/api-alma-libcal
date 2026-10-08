@@ -1,6 +1,6 @@
 # 00 — Empieza aquí: verificar datos
 
-La configuración básica de Python, credenciales, reportes de Alma, categorías de LibCal y Google Sheets está preparada. Ahora comprobamos si los registros y cantidades coinciden con los reportes de los sistemas. Todavía faltan algunas columnas del reporte final; el cruce con usuarios de la universidad y la automatización vendrán después.
+La configuración básica de Python, credenciales, reportes de Alma, categorías de LibCal y Google Sheets está preparada. Ahora comprobamos si los registros y cantidades coinciden con los reportes de los sistemas. Alma ya conserva las columnas de préstamos y renovaciones definidas en la guía 01; quedan campos finales de LibCal. El cruce con usuarios de la universidad y la automatización vendrán después.
 
 ## Orden de trabajo
 
@@ -51,7 +51,7 @@ Empieza con una fecha y un conjunto. Una consulta vacía no demuestra por sí so
 | Conjunto | Fecha de operaciones | Filas guardadas | Cantidad a comparar |
 | --- | --- | ---: | ---: |
 | Préstamos | 2026-10-07 | 198 | 198 préstamos/usos internos |
-| Renovaciones | 2026-10-07 | 10 | Suma de quantity: 10 |
+| Renovaciones | 2026-10-07 | 10 | Suma de renewal_quantity: 10 |
 | Reservas | 2026-10-08 | 3 | 3 reservas al momento de consultar |
 
-Estas muestras están en SQLite. También preparamos copias CSV en `data/verificacion/` y un `resumen.csv` por fecha/campus/categoría/estado. Empieza comparando esta muestra con los reportes originales. Las reservas del día pueden aumentar o cambiar de estado.
+Estas muestras están en SQLite. También preparamos copias CSV en `data/verificacion/` y un `resumen.csv` por fecha/campus/categoría/estado. Las cantidades de esta muestra ya fueron validadas por el usuario y coinciden con los reportes originales. Ahora se verifica el contenido de las columnas ampliadas de Alma. Las reservas del día pueden aumentar o cambiar de estado.

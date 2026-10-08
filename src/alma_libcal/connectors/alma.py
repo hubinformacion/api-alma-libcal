@@ -177,6 +177,7 @@ class AlmaConnector:
         return Record(
             dataset=self.dataset,
             record_id=record_id,
+            loan_id=loan_id,
             activity_date=day,
             user_id=user_id,
             source_user_email=email,
@@ -187,6 +188,15 @@ class AlmaConnector:
             in_house_loan_indicator=indicator if not renewal else "",
             status=mapped(row, fields, "status"),
             quantity=quantity(mapped(row, fields, "quantity", required=True)) if renewal else 1,
+            item_mms_id=mapped(row, fields, "item_mms_id"),
+            item_barcode=mapped(row, fields, "item_barcode"),
+            item_material_type=mapped(row, fields, "item_material_type"),
+            item_policy=mapped(row, fields, "item_policy"),
+            loan_time=mapped(row, fields, "loan_time") if not renewal else "",
+            loan_library_code=mapped(row, fields, "loan_library_code") if not renewal else "",
+            loan_desk_code=mapped(row, fields, "loan_desk_code") if not renewal else "",
+            loan_desk_name=mapped(row, fields, "loan_desk_name") if not renewal else "",
+            loan_desk_description=mapped(row, fields, "loan_desk_description") if not renewal else "",
             source_updated_at=mapped(row, fields, "source_updated_at"),
             source_available_at=mapped(row, fields, "source_available_at"),
         )

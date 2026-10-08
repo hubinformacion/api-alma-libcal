@@ -122,6 +122,32 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.count("renovaciones"), 1)
         self.assertEqual(self.store.records("renovaciones")[0].quantity, 3)
 
+    def test_alma_reports_use_exact_distinct_schemas_and_original_loan_id(self):
+        loan_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title loan_date loan_time in_house_loan_indicator loan_campus_code loan_campus loan_library_code loan_desk_code loan_desk_name loan_desk_description loan_status'.split()
+        renewal_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title renewal_date renewal_campus_code renewal_campus_name renewal_quantity loan_status'.split()
+        renewal = Record('renovaciones', 'L1:2026-10-06:CUS', '2026-10-06', loan_id='L1', quantity=2,
+                         user_id='000123', resource_id='I1', item_mms_id='990000000123456789',
+                         item_barcode='000045', item_material_type='Libro', item_policy='Domicilio')
+        self.save(renewal)
+        self.save(replace(self.record, loan_id='L1', loan_time='14:05', loan_library_code='LIB',
+                          loan_desk_code='DESK', loan_desk_name='Módulo 1', loan_desk_description='Cusco'))
+        for dataset, expected in [('prestamos',loan_headers),('renovaciones',renewal_headers)]:
+            self.assertEqual(self.store.table(dataset)[0], expected)
+        row = dict(zip(*self.store.table('renovaciones')))
+        self.assertEqual(row['loan_id'], 'L1')
+        self.assertEqual(row['renewal_quantity'], 2)
+        self.assertEqual(row['item_barcode'], '000045')
+        self.assertEqual(row['item_mms_id'], '990000000123456789')
+        loan = dict(zip(*self.store.table('prestamos')))
+        self.assertEqual(loan['loan_time'], '14:05')
+        self.assertEqual(loan['loan_desk_name'], 'Módulo 1')
+
+    def test_legacy_renewal_id_is_recovered_without_inventing_missing_item_fields(self):
+        self.save(Record('renovaciones', 'L1:2026-10-06:CUS', '2026-10-06', quantity=2))
+        row = dict(zip(*self.store.table('renovaciones')))
+        self.assertEqual(row['loan_id'], 'L1')
+        self.assertEqual(row['item_barcode'], '')
+
     def test_retrospective_overlap_preserves_existing_records(self):
         self.save(self.record)
         old = replace(self.record, record_id="OLD", activity_date="2026-01-02")
@@ -167,14 +193,13 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(publish(self.store, capture, ["prestamos"], self.interval, self.report))
         state = dict(zip(self.store.control()[0], self.store.control()[1]))
         self.assertEqual(state["pending"], "no")
-        self.assertEqual(capture.tables["prestamos"][1][2], "000123")
+        self.assertEqual(capture.tables["prestamos"][1][capture.tables["prestamos"][0].index("source_user_id")], "000123")
 
     def test_missing_user_is_flagged_without_inventing_identity(self):
         self.save(replace(self.record, user_id=""))
         table = self.store.table("prestamos")
         row = dict(zip(table[0], table[1]))
-        self.assertEqual(row["user_id"], "")
-        self.assertEqual(row["user_id_missing"], "sí")
+        self.assertEqual(row["source_user_id"], "")
 
     def test_valid_empty_batch_creates_headers_and_preserves_history(self):
         self.save(self.record)
@@ -211,9 +236,9 @@ class PipelineTests(unittest.TestCase):
         requests = session.calls[1][2]["json"]["requests"]
         self.assertEqual(requests[1]["updateCells"]["range"], {"sheetId": 0})
         cells = requests[2]["updateCells"]["rows"][1]["values"]
-        self.assertEqual(cells[2]["userEnteredValue"], {"stringValue": "000123"})
-        self.assertEqual(cells[4]["userEnteredValue"], {"stringValue": "=IMPORTXML(secret)"})
-        self.assertEqual(cells[12]["userEnteredValue"], {"numberValue": 1})
+        self.assertEqual(cells[self.store.table("prestamos")[0].index("source_user_id")]["userEnteredValue"], {"stringValue": "000123"})
+        self.assertEqual(cells[self.store.table("prestamos")[0].index("item_title")]["userEnteredValue"], {"stringValue": "=IMPORTXML(secret)"})
+        self.assertNotIn("quantity", self.store.table("prestamos")[0])
 
     def test_google_failure_does_not_mark_snapshot_published(self):
         config = demo_config(self.directory)
@@ -223,6 +248,19 @@ class PipelineTests(unittest.TestCase):
         self.assertFalse(publish(self.store, SheetsPublisher(config, session), ["prestamos"], self.interval, self.report))
         state = dict(zip(self.store.control()[0], self.store.control()[1]))
         self.assertEqual(state["published_revision"], 0)
+
+    def test_google_renewal_output_keeps_original_id_and_numeric_quantity(self):
+        self.save(Record('renovaciones', 'L1:2026-10-06:CUS', '2026-10-06', loan_id='L1', quantity=2))
+        config = demo_config(self.directory)
+        config.raw['google'] = {'spreadsheet_id': 'test_spreadsheet'}
+        session = Session()
+        table = self.store.table('renovaciones')
+        SheetsPublisher(config, session).publish({'renovaciones': table})
+        requests = session.calls[1][2]['json']['requests']
+        rows = next(r['updateCells']['rows'] for r in requests if 'rows' in r.get('updateCells', {}))
+        cells = rows[1]['values']
+        self.assertEqual(cells[table[0].index('loan_id')]['userEnteredValue'], {'stringValue': 'L1'})
+        self.assertEqual(cells[table[0].index('renewal_quantity')]['userEnteredValue'], {'numberValue': 2})
 
     def test_oversize_publication_does_not_clear_google(self):
         config = demo_config(self.directory)
