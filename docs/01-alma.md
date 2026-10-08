@@ -1,68 +1,46 @@
-# 01 — Alma: ajustes y validación pendientes
+# 01 — Alma: extraer y comparar
 
-Ya tienes Loans y comprobaste que `loan_id` no se repite en el día revisado. Las rutas están introducidas en `config.toml`; no recrees el análisis ni la clave.
+Loans y Renewals ya tienen rutas y mapas de columnas en `config.toml`. Para esta verificación conserva los análisis actuales, con identificadores y correos originales, sin fórmulas que sustituyan usuarios por etiquetas.
 
-## 1. Loans: consulta y mapeo confirmados
+## 1. Guardar préstamos de un día
 
-La inspección con fechas devolvió las columnas del reporte. No hace falta repetir el diagnóstico HTTP 500. Se actualizó `[alma.prestamos.fields]` de `config.toml` con este mapa:
-
-| Campo | Columna API |
-| --- | --- |
-| ID del préstamo | Column12 |
-| Fecha | Column8 |
-| Identificador original del usuario | Column1 |
-| ID del ejemplar | Column11 |
-| Título | Column17 |
-| Campus / código de campus | Column3 / Column2 |
-| Estado | Column13 |
-| Indicador de uso interno | Column10 |
-
-`Column0` es auxiliar y no se importa. El reporte no entrega fechas de actualización; esos mapas permanecen vacíos.
-
-## 2. Correo original implementado; atributos del ejemplar pendientes
-
-El reporte ya entrega User Primary Identifier (Column1) y Preferred Email (Column19) sin CASE ni LOWER. El programa ya conserva el correo como `source_user_email` en Loans (Column19) y Renewals (Column10). Obtiene la clasificación de uso interno del indicador Y/N; no se sustituye la identidad por una etiqueta.
-
-También quedaron identificados Barcode (Column9), Loan Time (Column14), Material Type (Column15), MMS Id (Column16), Item Policy (Column18), correo (Column19), Library Code (Column7) y el módulo (Column4–Column6). El correo ya se almacena; los demás atributos requieren ampliar el esquema básico.
-
-**Si cambias columnas o fórmulas, vuelve a inspeccionar antes de importar:** el orden de ColumnN puede cambiar. Los atributos académicos y la identidad validada se completarán desde la universidad después.
-
-## 3. Renewals: mapeo confirmado por campus
-
-La inspección recibida confirma estas columnas; ya se configuró `[alma.renovaciones.fields]`:
-
-| Campo del programa | Columna API |
-| --- | --- |
-| `loan_id` | Column4 — Item Loan Id |
-| `activity_date` | Column13 — Renewal Date |
-| `user_id` | Column1 — User Primary Identifier |
-| `resource_id` | Column3 — Item Id |
-| `resource_name` | Column8 — Title |
-| `site_id` | Column11 — Renewal Campus Code |
-| `site` | Column12 — Renewal Campus Name |
-| `status` | Column5 — Loan Status |
-| `quantity` | Column14 — Renewals |
-
-Column0 se ignora. No hay fechas de actualización en esta respuesta, así que sus mapas quedan vacíos. Barcode (Column2), Material Type (Column6), MMS Id (Column7), Item Policy (Column9) quedan identificados para la ampliación del extractor. Preferred Email (Column10) ya se almacena como `source_user_email`.
-
-La cantidad llega como `xsd:double`: el lector acepta valores enteros como `2.0` y los convierte a 2. El total de renovaciones es la **suma de quantity**, no el número de filas. La clave distingue préstamo + día + campus de renovación. Un campus ausente queda sin asignar.
-
-## 4. Validación pendiente
-
-Ambos reportes ya tienen su mapeo básico confirmado. Todavía debemos:
-
-1. Confirmar que Renewals admite el intervalo de fecha enviado por la API. Su filtro debe usar Renewal Date como `is prompted`, sin un filtro fijo de Loan Date, y conservar `Renewals > 0`.
-2. Ampliar el almacenamiento para los atributos del ejemplar que ya identificamos en ambos análisis; el correo ya está implementado.
-3. Extraer un día conocido y comparar préstamos distintos y suma de renovaciones por campus con Analytics. Verificar que no se repiten claves préstamo/día/campus.
-
-Para inspeccionar Renewals con fechas, sustituye ambos valores por un día con renovaciones conocidas:
+Desde la carpeta del proyecto:
 
 ```bash
-.venv/bin/python -m alma_libcal inspect-alma --dataset renovaciones --from 2026-10-06 --to 2026-10-06
+.venv/bin/python -m alma_libcal sync --only prestamos --from 2026-10-07 --to 2026-10-07 --extract-only
 ```
 
-El comando solo muestra encabezados: confirma la consulta, pero no valida los conteos. La comparación se hará al extraer la muestra después de ampliar el esquema.
+Sustituye ambas fechas por el mismo día con registros conocidos en Analytics. El programa consulta todas las páginas y muestra cuántas filas extrajo y cuántas hay en el histórico. Guarda los registros en `data/pilot.sqlite3`, sin enviarlos a Google.
 
-Las renovaciones automáticas siguen fuera del conteo fechado; Last Renewal Date tampoco permite reconstruir todos los movimientos. [Referencia oficial](https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_(English)/080Analytics/Alma_Analytics_Subject_Areas/Fulfillment).
+En Analytics abre el análisis **Loans** conectado a la API, aplica la misma fecha de préstamo y exporta a Excel. Compara:
 
-**No cambies columnas ni fórmulas sin volver a inspeccionar:** los números ColumnN pueden cambiar. La identidad validada y los atributos académicos se completarán desde la universidad en la etapa posterior.
+- Cantidad de préstamos: IDs `Item Loan Id` distintos frente a las filas extraídas.
+- Conteos por campus de la operación, no por campus del usuario.
+- Usos internos: `In House Loan Indicator = Y`. La ausencia de usuario por sí sola no los identifica.
+- Algunas filas por ID: fecha, ejemplar, título, campus, estado y correo original.
+
+El programa conserva préstamos y usos internos en `prestamos`; `usage_type` permite distinguirlos.
+
+## 2. Guardar renovaciones del mismo día
+
+```bash
+.venv/bin/python -m alma_libcal sync --only renovaciones --from 2026-10-07 --to 2026-10-07 --extract-only
+```
+
+En Analytics abre **Renewals**, usa la misma `Renewal Date` y compara la **suma de Renewals** con la **suma de quantity** en los registros guardados. El número de filas no es el total de renovaciones: una fila puede representar varias.
+
+Compara esa suma por campus de renovación. La clave del programa distingue préstamo, día y campus. Para ver `quantity` por columnas, sigue [03 — Ver los datos](03-ver-datos.md).
+
+Si falla el filtro de fechas, prueba:
+
+```bash
+.venv/bin/python -m alma_libcal inspect-alma --dataset renovaciones --from 2026-10-07 --to 2026-10-07
+```
+
+Ese diagnóstico muestra encabezados, no cantidades. Verifica en Analytics que Renewal Date sea un filtro `is prompted`, que no quede un filtro fijo de Loan Date y que se conserve `Renewals > 0`. Las renovaciones automáticas no se incorporan al conteo fechado: la medida no tiene asociación con Renewal Date. [Referencia de Ex Libris](https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_(English)/080Analytics/Alma_Analytics_Subject_Areas/Fulfillment).
+
+## 3. Registrar el resultado
+
+Anota fecha, conjunto, campus, cantidad de Analytics y cantidad del programa. Repite la extracción del mismo día: los IDs existentes se actualizan y no deben duplicarse.
+
+Todavía no se guardan barcode, MMS ID, tipo de material, política, hora y detalles del módulo. Están identificados en los análisis y pendientes de incorporar al programa. Si cambias el orden de columnas de Analytics, debemos actualizar el mapa antes de extraer.
