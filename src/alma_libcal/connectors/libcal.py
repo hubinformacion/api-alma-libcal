@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from ..config import https_url, positive, required, secret
 from ..errors import ConfigError, SourceError
-from ..models import Batch, Record, local_date, lookup, mapped, timestamp
+from ..models import Batch, Record, email_identifier, local_date, lookup, mapped, timestamp
 
 CATEGORY_NAMES = {"Computadoras y laptops", "Espacios grupales", "Kindle"}
 
@@ -196,9 +196,13 @@ class LibCalConnector:
         answers = form.get("report_fields", {})
         if not isinstance(answers, dict) or any(not isinstance(value, str) for value in answers.values()):
             raise ConfigError("Configura libcal.forms.report_fields con los IDs de pregunta como texto.")
+        email = mapped(row, fields, 'source_user_email')
+        user_id = mapped(row, fields, 'user_id')
+        if not user_id and self.config.raw.get('libcal', {}).get('user_id_from_email', False):
+            user_id = email_identifier(email)
         return Record(
             dataset="reservas", record_id=mapped(row, fields, "booking_id", required=True),
-            activity_date=local_date(starts_at, timezone), user_id=mapped(row, fields, "user_id"),
+            activity_date=local_date(starts_at, timezone), user_id=user_id,
             resource_id=mapped(row, fields, "resource_id", required=True),
             resource_name=mapped(row, fields, "resource_name"), site=mapped(row, fields, "site"),
             site_id=site_id,
@@ -206,7 +210,10 @@ class LibCalConnector:
             starts_at=starts_at, ends_at=ends_at,
             check_in=timestamp(mapped(row, fields, "check_in"), timezone),
             check_out=timestamp(mapped(row, fields, "check_out"), timezone),
-            source_user_email=mapped(row, fields, "source_user_email"),
+            source_user_email=email,
+            booking_account=mapped(row, fields, 'booking_account'),
+            source_user_name=mapped(row, fields, 'source_user_name'),
+            source_user_lastname=mapped(row, fields, 'source_user_lastname'),
             booking_form_id=form_id if form_id != "0" else "",
             booking_form_answer_1=mapped(row, answers, "booking_form_answer_1"),
             booking_form_answer_2=mapped(row, answers, "booking_form_answer_2"),

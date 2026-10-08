@@ -192,6 +192,8 @@ class AlmaConnector:
             item_barcode=mapped(row, fields, "item_barcode"),
             item_material_type=mapped(row, fields, "item_material_type"),
             item_policy=mapped(row, fields, "item_policy"),
+            loan_origin_campus_code=mapped(row, fields, "loan_origin_campus_code") if renewal else "",
+            loan_origin_campus=mapped(row, fields, "loan_origin_campus") if renewal else "",
             loan_time=mapped(row, fields, "loan_time") if not renewal else "",
             loan_library_code=mapped(row, fields, "loan_library_code") if not renewal else "",
             loan_desk_code=mapped(row, fields, "loan_desk_code") if not renewal else "",

@@ -70,15 +70,35 @@ Omitir `--extract-only` permite consultar, guardar y publicar. Para incluir LibC
 
 `check-libcal` admite `--date YYYY-MM-DD` para hoy o fechas futuras. Los IDs de campus, categorías y formularios ya están en `config.toml`.
 
-## Campus de las renovaciones: siguiente ajuste
+## Transformaciones implementadas
 
-Confirmaste que el caso sin campus corresponde a una renovación realizada por un operador sin módulo/locación asignado. Los campos originales `renewal_campus_code` y `renewal_campus_name` deben conservar ese vacío.
+### Alma
 
-Podemos incorporar el campus del préstamo original como referencia mediante `loan_campus_code` y `loan_campus`. El criterio para agrupar sería usar el campus de renovación cuando exista y, si falta, el del préstamo original, conservando la distinción de origen. No representa una confirmación del lugar donde se renovó.
+El mapa de Renewals ya incluye el campus del préstamo original y el nuevo orden de columnas. Se conservan `renewal_campus_code/name` y se añaden `loan_campus_code` y `loan_campus`.
 
-Para obtenerlo, abre el análisis **Renewals** conectado a la API y añade al final, desde **Loan Circulation Desk**, **Campus Code** y **Campus Name**, sin fórmulas. Puedes ponerles encabezados `Loan Campus Code` y `Loan Campus Name`. Esa dimensión describe el módulo del préstamo original. [Referencia de Ex Libris](https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_(English)/080Analytics/Alma_Analytics_Subject_Areas/Fulfillment).
+Para agrupar usa `report_campus_code` y `report_campus`: priorizan el campus de renovación y, si ambos campos están vacíos, usan el préstamo original. `report_campus_source` identifica `renewal`, `loan` o `unassigned`. Si existe un campus parcial, no se mezclan códigos y nombres de orígenes distintos. La clave interna de la renovación sigue usando el campus original de renovación para evitar duplicados al completar la referencia.
 
-Guarda el análisis y ejecuta `inspect-alma --dataset renovaciones --from 2026-10-07 --to 2026-10-07`. Comparte su salida de encabezados para actualizar el mapa y ampliar la salida del programa. **No extraigas renovaciones después de modificar el análisis hasta actualizar el mapa:** Analytics puede cambiar los números ColumnN. Estas dos columnas adicionales todavía no están incorporadas al extractor.
+Préstamos incorporan `loan_month`, `loan_month_number` y `loan_hour`; renovaciones, `renewal_month` y `renewal_month_number`. La hora se deriva de Loan Time, que se conserva tal como viene. Los meses están en español y las fechas en formato ISO.
+
+### LibCal
+
+La salida de reservas contiene los atributos operativos del reporte: correo, recurso, categoría, campus, fecha, inicio/fin, mes, número de mes, hora, estado, confirmación y correos de integrantes. Incluye IDs y puestos para seguimiento.
+
+- `booking_duration_hours`: horas decimales entre inicio y fin, incluso si cruza medianoche. `booking_duration_minutes` conserva también la medida en minutos. Es duración reservada, no uso efectivo medido por check-in/check-out.
+- `booking_confirmation`: Confirmado para Confirmed; Cancelado para los estados Cancelled/Canceled. Otros estados quedan sin clasificar en esta columna y se conservan en `booking_status`.
+- `source_user_id`: parte anterior a `@` del correo cuando no hay ID explícito. Conserva ceros iniciales; es una clave candidata, no un DNI validado con la institución.
+- `booking_account_email`: se llena solo si `account` contiene un correo. El valor original se conserva en `booking_account`; no se inventa un dominio para un login.
+- `user_name`, `user_lastname`, `user_type`, `user_modality`, `user_campus`, `user_program`, `user_department` y `user_business_unit` quedan vacíos hasta cruzar con la base universitaria. Los nombres manuales de LibCal se conservan aparte en `source_user_name/lastname`; `user_email` conserva por ahora el correo original para el cruce.
+
+Inicio/fin se normalizan a America/Lima; la fecha, mes y hora se calculan desde el inicio local. Los formularios 8253 aportan los correos de integrantes 2 y 3; las demás categorías dejan esas columnas vacías.
+
+## Cómo publica y qué falta para escalar
+
+SQLite actualiza por ID los registros del intervalo solicitado y conserva el histórico anterior. Sheets todavía recibe una copia completa del histórico de las pestañas seleccionadas; no compara qué filas faltan o cambiaron. El cambio de encabezados queda reflejado en esa recarga.
+
+Se reemplazan valores y se escriben los nuevos en una sola petición atómica. El publicador limita esa petición a **1,8 MB** y la rechaza antes de enviarla si supera el umbral; el histórico local queda disponible. Google recomienda peticiones de hasta 2 MB y aplica cuotas y tiempos máximos de procesamiento. [Límites de Sheets](https://developers.google.com/workspace/sheets/api/limits).
+
+Para miles de registros, el próximo cambio será publicar por lotes y comparar claves y contenido: agregar nuevos, actualizar modificados y omitir iguales. Al cambiar el esquema se necesitará reconstruir la salida de manera controlada. Esta publicación incremental todavía no está implementada.
 
 ## Dónde están los datos
 
@@ -92,7 +112,12 @@ Guarda el análisis y ejecuta `inspect-alma --dataset renovaciones --from 2026-1
 
 En `docs/` solo se conservan `1_1.yml` (API LibCal) y `database/` (arquitectura institucional). Las guías de configuración y verificación completadas fueron retiradas.
 
-Quedan incorporar el campus de referencia, completar campos finales de LibCal, resolver su fuente histórica, cruzar usuarios con la universidad y programar las extracciones.
+El orden de trabajo siguiente es:
+
+1. Comparar las transformaciones con tus reportes terminados. Coloca `alma-prestamos.csv`, `alma-renovaciones.csv` y `libcal.csv` en **`data/referencias/`**. Esta carpeta es local y está excluida de Git; no se carga a Sheets automáticamente.
+2. Implementar publicación incremental y por lotes antes de ampliar la carga histórica.
+3. Definir el cruce con la base universitaria y la vigencia de los atributos académicos.
+4. Resolver la fuente histórica de LibCal y programar las ejecuciones. Su endpoint actual no permite recuperar fechas pasadas.
 
 Código en `src/alma_libcal/`; pruebas en `tests/`. Para comprobar el programa con datos ficticios:
 

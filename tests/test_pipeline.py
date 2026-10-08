@@ -96,10 +96,10 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(publish(self.store, publisher, ["reservas"], self.interval, self.report))
         table = publisher.tables["reservas"]
         row = dict(zip(table[0], table[1]))
-        self.assertEqual(row["source_user_email"], "one@example.invalid")
+        self.assertEqual(row["user_email"], "one@example.invalid")
         self.assertEqual(row["booking_form_answer_1"], "two@example.invalid")
         self.assertEqual(row["booking_form_answer_2"], "three@example.invalid")
-        self.assertEqual(row["status"], "Cancelled by Admin")
+        self.assertEqual(row["booking_status"], "Cancelled by Admin")
         self.assertEqual(row["seat_id"], "000123")
         self.assertEqual(row["seat_name"], "Puesto 01")
 
@@ -123,8 +123,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.records("renovaciones")[0].quantity, 3)
 
     def test_alma_reports_use_exact_distinct_schemas_and_original_loan_id(self):
-        loan_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title loan_date loan_time in_house_loan_indicator loan_campus_code loan_campus loan_library_code loan_desk_code loan_desk_name loan_desk_description loan_status'.split()
-        renewal_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title renewal_date renewal_campus_code renewal_campus_name renewal_quantity loan_status'.split()
+        loan_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title loan_date loan_time in_house_loan_indicator loan_campus_code loan_campus loan_library_code loan_desk_code loan_desk_name loan_desk_description loan_status loan_month loan_month_number loan_hour'.split()
+        renewal_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title renewal_date renewal_campus_code renewal_campus_name renewal_quantity loan_status loan_campus_code loan_campus report_campus_code report_campus report_campus_source renewal_month renewal_month_number'.split()
         renewal = Record('renovaciones', 'L1:2026-10-06:CUS', '2026-10-06', loan_id='L1', quantity=2,
                          user_id='000123', resource_id='I1', item_mms_id='990000000123456789',
                          item_barcode='000045', item_material_type='Libro', item_policy='Domicilio')
@@ -147,6 +147,62 @@ class PipelineTests(unittest.TestCase):
         row = dict(zip(*self.store.table('renovaciones')))
         self.assertEqual(row['loan_id'], 'L1')
         self.assertEqual(row['item_barcode'], '')
+
+    def test_renewal_report_campus_falls_back_without_changing_original_or_key(self):
+        record = Record('renovaciones', 'L1:2026-10-06', '2026-10-06', loan_id='L1',
+                        loan_origin_campus_code='CUS', loan_origin_campus='Cusco')
+        self.save(record)
+        row = dict(zip(*self.store.table('renovaciones')))
+        self.assertEqual(row['renewal_campus_code'], '')
+        self.assertEqual(row['renewal_campus_name'], '')
+        self.assertEqual(row['loan_campus_code'], 'CUS')
+        self.assertEqual(row['report_campus'], 'Cusco')
+        self.assertEqual(row['report_campus_source'], 'loan')
+        self.assertEqual(self.store.records('renovaciones')[0].record_id, 'L1:2026-10-06')
+        for code, name in [('HYO','Huancayo'),('HYO','')]:
+            changed = replace(record, site_id=code, site=name)
+            output = dict(zip(self.store.table('renovaciones')[0], changed.report_values()))
+            self.assertEqual(output['report_campus_code'], 'HYO')
+            self.assertEqual(output['report_campus'], name)
+            self.assertEqual(output['report_campus_source'], 'renewal')
+
+    def test_booking_report_transforms_cross_midnight_and_keeps_canonical_identity_empty(self):
+        record = Record('reservas','B1','2026-10-06',source_user_email='000123@example.invalid',
+                        source_user_name='Manual name', source_user_lastname='Manual surname',
+                        starts_at='2026-10-06T23:30:00-05:00',ends_at='2026-10-07T01:00:00-05:00',
+                        status='Cancelled by Admin',booking_account='login123')
+        self.save(record)
+        row = dict(zip(*self.store.table('reservas')))
+        self.assertEqual(row['booking_duration_hours'],1.5)
+        self.assertEqual(row['booking_duration_minutes'],90)
+        self.assertEqual(row['booking_hour'],23)
+        self.assertEqual(row['booking_month_number'],10)
+        self.assertEqual(row['booking_month'],'Octubre')
+        self.assertEqual(row['booking_confirmation'],'Cancelado')
+        self.assertEqual(row['booking_status'],'Cancelled by Admin')
+        self.assertEqual(row['user_name'],'')
+        self.assertEqual(row['user_lastname'],'')
+        self.assertEqual(row['source_user_name'],'Manual name')
+        self.assertEqual(row['booking_account_email'],'')
+        self.assertEqual(row['booking_account'],'login123')
+        changed = replace(record,status='Confirmed',booking_account='000123@example.invalid')
+        row = dict(zip(self.store.table('reservas')[0],changed.report_values()))
+        self.assertEqual(row['booking_confirmation'],'Confirmado')
+        self.assertEqual(row['booking_account_email'],'000123@example.invalid')
+        changed = replace(record,status='Tentative')
+        row = dict(zip(self.store.table('reservas')[0],changed.report_values()))
+        self.assertEqual(row['booking_confirmation'],'')
+
+    def test_loan_report_uses_validated_hour_and_month_without_rewriting_source_time(self):
+        from alma_libcal.errors import SourceError
+        headers=self.store.table('prestamos')[0]
+        for value in ('14','14:25:59'):
+            row=dict(zip(headers,replace(self.record,loan_time=value).report_values()))
+            self.assertEqual(row['loan_hour'],14)
+            self.assertEqual(row['loan_time'],value)
+            self.assertEqual(row['loan_month_number'],10)
+        with self.assertRaises(SourceError):
+            replace(self.record,loan_time='25:00').report_values()
 
     def test_retrospective_overlap_preserves_existing_records(self):
         self.save(self.record)

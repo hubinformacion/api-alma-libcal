@@ -43,7 +43,7 @@ class ConnectorTests(unittest.TestCase):
         import tomllib
         example = Path(__file__).resolve().parents[1] / 'config.example.toml'
         config = tomllib.loads(example.read_text())
-        for dataset, barcode_column, mms_column in [('prestamos','Column9','Column16'),('renovaciones','Column2','Column7')]:
+        for dataset, barcode_column, mms_column in [('prestamos','Column9','Column16'),('renovaciones','Column4','Column9')]:
             fields = config['alma'][dataset]['fields']
             row = {fields['loan_id']:'L1',fields['activity_date']:'2026-10-07',
                    fields['user_id']:'000123',barcode_column:'000045',mms_column:'990000000123456789',
@@ -277,6 +277,56 @@ class ConnectorTests(unittest.TestCase):
         fields = {**self.config.raw["libcal"]["fields"], "user_id": "answers.0.value"}
         record = LibCalConnector(self.config, DemoHTTP()).normalize(first, fields, {"id": "101", "name": "Computadoras y laptops"})
         self.assertEqual(record.user_id, "000009")
+
+    def test_libcal_email_prefix_is_only_a_source_identifier_and_keeps_zeros(self):
+        self.config.raw['libcal']['user_id_from_email']=True
+        row=json.loads(fixture('libcal_bookings.json'))[0]
+        fields={**self.config.raw['libcal']['fields'],'source_user_email':'email',
+                'source_user_name':'firstName','source_user_lastname':'lastName','booking_account':'account','user_id':''}
+        row.update(email='000123@example.invalid',firstName='Manual',lastName='Entry',account='login123')
+        category={'id':'101','name':'Computadoras y laptops'}
+        connector=LibCalConnector(self.config,DemoHTTP())
+        record=connector.normalize(row,fields,category)
+        self.assertEqual(record.user_id,'000123')
+        self.assertEqual(record.source_user_name,'Manual')
+        self.assertEqual(record.user_name,'')
+        self.assertEqual(record.booking_account,'login123')
+        for email in ('not-an-email','@example.invalid','id@','a@b@c'):
+            self.assertEqual(connector.normalize({**row,'email':email},fields,category).user_id,'')
+        fields['user_id']='institutionalId'
+        self.assertEqual(connector.normalize({**row,'institutionalId':'000456'},fields,category).user_id,'000456')
+
+    def test_updated_renewal_map_preserves_both_campuses_and_report_fallback(self):
+        import tomllib
+        config=tomllib.loads((Path(__file__).resolve().parents[1]/'config.example.toml').read_text())
+        fields=config['alma']['renovaciones']['fields']
+        row={'Column1':'000123','Column2':'CUS','Column3':'Cusco','Column4':'000045','Column5':'I1',
+             'Column6':'L1','Column7':'Active','Column8':'Libro','Column9':'990000123456789',
+             'Column10':'Title','Column11':'Domicilio','Column12':'000123@example.invalid',
+             'Column15':'2026-10-07','Column16':'2.0'}
+        record=AlmaConnector(self.config,DemoHTTP(),'renovaciones').normalize(row,fields)
+        from alma_libcal.models import report_headers
+        result=dict(zip(report_headers('renovaciones'),record.report_values()))
+        self.assertEqual(result['loan_id'],'L1')
+        self.assertEqual(result['item_barcode'],'000045')
+        self.assertEqual(result['renewal_quantity'],2)
+        self.assertEqual(result['renewal_campus_code'],'')
+        self.assertEqual(result['report_campus_code'],'CUS')
+        self.assertEqual(result['report_campus_source'],'loan')
+
+    def test_booking_date_month_hour_and_duration_use_local_start_across_year_boundary(self):
+        from alma_libcal.models import report_headers
+        row=json.loads(fixture('libcal_bookings.json'))[0]
+        fields=self.config.raw['libcal']['fields']
+        row[fields['starts_at']]='2027-01-01T04:30:00Z'
+        row[fields['ends_at']]='2027-01-01T05:30:00Z'
+        record=LibCalConnector(self.config,DemoHTTP()).normalize(row,fields,{'id':'101','name':'Computadoras y laptops'})
+        result=dict(zip(report_headers('reservas'),record.report_values()))
+        self.assertEqual(result['booking_date'],'2026-12-31')
+        self.assertEqual(result['booking_month_number'],12)
+        self.assertEqual(result['booking_month'],'Diciembre')
+        self.assertEqual(result['booking_hour'],23)
+        self.assertEqual(result['booking_duration_hours'],1)
 
     def test_libcal_category_mismatch_fails(self):
         first = json.loads(fixture("libcal_bookings.json"))[0]

@@ -44,25 +44,28 @@ source_available_at = ""
 report_path = "/shared/REPLACE_INSTITUTION/Pilot/Renewals"
 date_column = '"Renewal Date"."Renewal Date"'
 [alma.renovaciones.fields]
-item_mms_id = "Column7"
-item_barcode = "Column2"
-item_material_type = "Column6"
-item_policy = "Column9"
-source_user_email = "Column10"
-# Mapeo verificado de Renewals; clave: préstamo + fecha + campus.
-loan_id = "Column4"
-activity_date = "Column13"
+# Orden verificado tras incorporar el campus del préstamo original.
+item_mms_id = "Column9"
+item_barcode = "Column4"
+item_material_type = "Column8"
+item_policy = "Column11"
+source_user_email = "Column12"
+loan_id = "Column6"
+activity_date = "Column15"
 user_id = "Column1"
-resource_id = "Column3"
-resource_name = "Column8"
-site = "Column12"
-site_id = "Column11"
-status = "Column5"
-quantity = "Column14"
+resource_id = "Column5"
+resource_name = "Column10"
+site = "Column14"
+site_id = "Column13"
+status = "Column7"
+quantity = "Column16"
+loan_origin_campus_code = "Column2"
+loan_origin_campus = "Column3"
 source_updated_at = ""
 source_available_at = ""
 
 [libcal]
+user_id_from_email = true # Parte anterior a @; pendiente de validar con la universidad.
 base_url = "https://REPLACE_INSTITUTION.libcal.com"
 token_path = "/1.1/oauth/token"
 bookings_path = "/1.1/space/bookings"
@@ -92,6 +95,9 @@ include_denied = 1
 # Add documented static parameters here if required to include cancellations.
 
 [libcal.fields]
+booking_account = "account"
+source_user_name = "firstName"
+source_user_lastname = "lastName"
 seat_id = "seat_id"
 seat_name = "seat_name"
 source_user_email = "email"
@@ -105,9 +111,9 @@ site_id = "lid"
 status = "status"
 # Optional if the response includes category ID; enables filter verification.
 category_id = "cid"
-# Configure the actual institutional code field, not an email fallback.
+# Si la API entrega un identificador explícito, tiene prioridad sobre el correo.
 # Dotted paths support nested objects and array indices, e.g. answers.0.value.
-user_id = "" # No verified institutional ID yet; do not use email as a substitute.
+user_id = "" # Si no hay ID explícito, user_id_from_email obtiene la parte anterior a @.
 check_in = "" # Map only if an ISO timestamp is available.
 check_out = ""
 
