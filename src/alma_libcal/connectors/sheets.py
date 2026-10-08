@@ -113,7 +113,8 @@ class SheetsPublisher:
             requests.append({"updateCells": {"start": {"sheetId": sheet_id, "rowIndex": 0, "columnIndex": 0},
                                                "rows": cells, "fields": "userEnteredValue"}})
         body = {"requests": requests}
-        if len(json.dumps(body, ensure_ascii=False).encode()) > 1_800_000:
+        # requests uses ASCII-escaped JSON; measure that serialization.
+        if len(json.dumps(body, ensure_ascii=True).encode()) > 1_800_000:
             raise PublicationError("La publicación supera el tamaño del piloto (1,8 MB); el histórico queda local. Divide o amplía el publicador antes de cargar todo el año.")
         self.request("POST", base + ":batchUpdate", json=body)
 

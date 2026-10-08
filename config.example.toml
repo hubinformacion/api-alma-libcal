@@ -81,6 +81,7 @@ window_days = 1
 max_pages = 10000
 
 [libcal.query]
+check_in_status = 1
 lid = "{location_id}"
 date = "{date}"
 days = "{days}"
@@ -95,6 +96,11 @@ include_denied = 1
 # Add documented static parameters here if required to include cancellations.
 
 [libcal.fields]
+source_booking_category_name = "category_name"
+booking_check_in_status = "check_in_status"
+booking_phone = "q25458"
+booking_terms_accepted = "q25536"
+source_booking_row_id = "id"
 booking_account = "account"
 source_user_name = "firstName"
 source_user_lastname = "lastName"
@@ -259,3 +265,36 @@ q25536 = "Términos y Condiciones"
 spreadsheet_id = "REPLACE_SPREADSHEET_ID"
 client_file = "secrets/google-client.json"
 token_file = "secrets/google-token.json"
+
+# Catálogos de reportería editables; no dependen de archivos CSV.
+[reporting]
+include_date_parts = true # false: omitir mes/número de mes/hora; conservar fechas y horas originales.
+
+[reporting.material_types]
+"ADDITIONAL1" = "Obra literaria"
+"ADDITIONAL2" = "Informe profesional"
+"ADDITIONAL3" = "Test psicológico"
+"ADDITIONAL4" = "Proyecto de investigación"
+"ADDITIONAL5" = "Obra de referencia"
+"ADDITIONAL9" = "Norma Técnica"
+"ARTICLE" = "Artículo"
+"ATLAS" = "Atlas"
+"BACHLORTHESIS" = "Tesis de licenciatura"
+"BOOK" = "Libro"
+"CASE" = "Expediente"
+"CDROM" = "CD-ROM"
+"DVD" = "DVD"
+"ISSUE" = "Revista"
+"MAP" = "Mapa"
+"MASTERTHESIS" = "Tesis de posgrado"
+"NEWSPAPER" = "Periódico"
+"SPECIALTHESIS" = "Tesis de grado especial"
+"THESIS" = "Tesis"
+"VRECORD" = "Videograbación"
+
+[reporting.attendance_statuses]
+# in/out: uso registrado; -: sin marcación. Añade otros códigos al verificarlos.
+"in" = "Sí"
+"out" = "Sí"
+"-" = "-"
+"no" = "No"

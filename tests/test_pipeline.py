@@ -78,6 +78,90 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.records("prestamos")[0].status, "Complete")
         self.assertEqual(self.store.records("prestamos")[0].user_id, "000123")
 
+    def test_audit_versions_only_change_with_content_and_preserve_revisited_states(self):
+        self.save(self.record)
+        first=self.store.db.execute('SELECT record_version,record_changed_at FROM records').fetchone()
+        self.save(self.record)
+        same=self.store.db.execute('SELECT record_version,record_changed_at FROM records').fetchone()
+        self.assertEqual(tuple(first),tuple(same))
+        self.save(replace(self.record,status='Complete'))
+        self.save(self.record)
+        versions=self.store.db.execute('SELECT version,payload FROM record_versions ORDER BY version').fetchall()
+        self.assertEqual([r['version'] for r in versions],[1,2,3])
+        self.assertEqual([json.loads(r['payload'])['status'] for r in versions],['','Complete',''])
+        row=dict(zip(*self.store.table('prestamos')))
+        self.assertEqual(row['record_version'],3)
+        self.assertTrue(row['record_changed_at'])
+
+    def test_catalog_changes_labels_without_rewriting_raw_data(self):
+        record=replace(self.record,item_material_type='BOOK')
+        self.save(record)
+        table=self.store.table('prestamos',{'material_types':{'BOOK':'Libro'}})
+        row=dict(zip(*table))
+        self.assertEqual(row['item_material_type_code'],'BOOK')
+        self.assertEqual(row['item_material_type_name'],'Libro')
+        self.assertEqual(row['item_material_type_mapping_status'],'mapped')
+        self.assertEqual(row['user_id'],'')
+        self.assertEqual(row['source_user_id'],'000123')
+        self.assertEqual(row['user_match_status'],'pending')
+        row=dict(zip(*self.store.table('prestamos',{'material_types':{}})))
+        self.assertEqual(row['item_material_type_name'],'Sin clasificar')
+        self.assertEqual(self.store.records('prestamos')[0].item_material_type,'BOOK')
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0],1)
+
+    def test_date_parts_can_be_omitted_without_losing_base_date_or_time(self):
+        self.save(replace(self.record,loan_time='14:30:00'))
+        settings={'include_date_parts':False}
+        table=self.store.table('prestamos',settings)
+        row=dict(zip(*table))
+        self.assertEqual(row['loan_date'],'2026-10-06')
+        self.assertEqual(row['loan_time'],'14:30:00')
+        for field in ('loan_hour','loan_month_name','loan_month_number'):
+            self.assertNotIn(field,row)
+        self.assertEqual(len(table[0]),len(table[1]))
+
+    def test_attendance_is_independent_of_cancellation_and_unrecorded_is_not_no(self):
+        from alma_libcal.models import report_headers
+        for status in ('Confirmed','Cancelled by Admin'):
+            for raw,label,indicator in [('in','Sí',1),('out','Sí',1),('no','No',0),('-','-',''),('','-',''),('new-code','Desconocido','')]:
+                record=Record('reservas','B1','2026-10-06',status=status,booking_check_in_status=raw)
+                row=dict(zip(report_headers('reservas'),record.report_values()))
+                self.assertEqual(row['booking_attendance_status'],label)
+                self.assertEqual(row['booking_attendance_indicator'],indicator)
+                self.assertEqual(row['source_booking_attendance_status'],raw)
+
+    def test_module_classification_keeps_renewals_separate(self):
+        from alma_libcal.models import report_headers
+        for indicator,desk,expected in [('Y','Huancayo autopréstamo','Uso interno'),
+                                        ('N','Huancayo AUTOPRÉSTAMO','Préstamo regular por autopréstamo'),
+                                        ('N','Cusco módulo 1','Préstamo regular por bibliotecario')]:
+            record=replace(self.record,in_house_loan_indicator=indicator,loan_desk_description=desk)
+            row=dict(zip(report_headers('prestamos'),record.report_values()))
+            self.assertEqual(row['loan_type'],expected)
+        renewal=Record('renovaciones','L1:2026-10-06','2026-10-06',quantity=2)
+        row=dict(zip(report_headers('renovaciones'),renewal.report_values()))
+        self.assertEqual(row['renewal_type'],'Renovación')
+        self.assertEqual(row['renewal_quantity'],2)
+
+    def test_legacy_storage_migration_marks_baseline_without_inventing_past_versions(self):
+        import sqlite3
+        path=self.directory/'legacy.sqlite3'
+        db=sqlite3.connect(path)
+        db.execute('CREATE TABLE records(dataset TEXT,record_id TEXT,activity_date TEXT,payload TEXT,PRIMARY KEY(dataset,record_id))')
+        old={'dataset':'prestamos','record_id':'L1','activity_date':'2026-10-06','user_id':'000123','resource_id':'R1'}
+        db.execute('INSERT INTO records VALUES(?,?,?,?)',('prestamos','L1','2026-10-06',json.dumps(old)))
+        db.commit();db.close()
+        store=Store(path)
+        try:
+            run=store.start_run('prestamos','extract',self.interval)
+            store.save('prestamos',self.interval,Batch([self.record]),run)
+            baseline=store.db.execute('SELECT version,observation_type FROM record_versions').fetchall()
+            self.assertEqual([tuple(r) for r in baseline],[(1,'baseline')])
+            run=store.start_run('prestamos','extract',self.interval)
+            store.save('prestamos',self.interval,Batch([replace(self.record,status='Complete')]),run)
+            self.assertEqual(store.db.execute('SELECT record_version FROM records').fetchone()[0],2)
+        finally:store.close()
+
     def test_cancelled_booking_updates_without_duplicate(self):
         booking = Record("reservas", "B1", "2026-10-06", status="Confirmed")
         self.save(booking)
@@ -97,9 +181,9 @@ class PipelineTests(unittest.TestCase):
         table = publisher.tables["reservas"]
         row = dict(zip(table[0], table[1]))
         self.assertEqual(row["user_email"], "one@example.invalid")
-        self.assertEqual(row["booking_form_answer_1"], "two@example.invalid")
-        self.assertEqual(row["booking_form_answer_2"], "three@example.invalid")
-        self.assertEqual(row["booking_status"], "Cancelled by Admin")
+        self.assertEqual(row["booking_participant_2_email"], "two@example.invalid")
+        self.assertEqual(row["booking_participant_3_email"], "three@example.invalid")
+        self.assertEqual(row["source_booking_status"], "Cancelled by Admin")
         self.assertEqual(row["seat_id"], "000123")
         self.assertEqual(row["seat_name"], "Puesto 01")
 
@@ -123,8 +207,9 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.records("renovaciones")[0].quantity, 3)
 
     def test_alma_reports_use_exact_distinct_schemas_and_original_loan_id(self):
-        loan_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title loan_date loan_time in_house_loan_indicator loan_campus_code loan_campus loan_library_code loan_desk_code loan_desk_name loan_desk_description loan_status loan_month loan_month_number loan_hour'.split()
-        renewal_headers = 'loan_id source_user_id source_user_email item_id item_mms_id item_barcode item_material_type item_policy item_title renewal_date renewal_campus_code renewal_campus_name renewal_quantity loan_status loan_campus_code loan_campus report_campus_code report_campus report_campus_source renewal_month renewal_month_number'.split()
+        common = 'record_id source_system record_version record_changed_at loan_id source_user_id source_user_email user_id user_email user_full_name user_first_name user_last_name user_type user_modality user_campus_name user_program_name user_department_name user_business_unit_name user_match_status item_id item_mms_id item_barcode item_material_type_code item_material_type_name item_material_type_mapping_status item_policy_name item_title'.split()
+        loan_headers = common + 'loan_type loan_channel loan_date loan_time in_house_loan_indicator loan_campus_code loan_campus_name loan_library_code loan_desk_code loan_desk_name loan_desk_description loan_status loan_month_name loan_month_number loan_hour'.split()
+        renewal_headers = common + 'renewal_type renewal_date renewal_campus_code renewal_campus_name renewal_quantity loan_status loan_campus_code loan_campus_name report_campus_code report_campus_name report_campus_source renewal_month_name renewal_month_number'.split()
         renewal = Record('renovaciones', 'L1:2026-10-06:CUS', '2026-10-06', loan_id='L1', quantity=2,
                          user_id='000123', resource_id='I1', item_mms_id='990000000123456789',
                          item_barcode='000045', item_material_type='Libro', item_policy='Domicilio')
@@ -156,14 +241,14 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(row['renewal_campus_code'], '')
         self.assertEqual(row['renewal_campus_name'], '')
         self.assertEqual(row['loan_campus_code'], 'CUS')
-        self.assertEqual(row['report_campus'], 'Cusco')
+        self.assertEqual(row['report_campus_name'], 'Cusco')
         self.assertEqual(row['report_campus_source'], 'loan')
         self.assertEqual(self.store.records('renovaciones')[0].record_id, 'L1:2026-10-06')
         for code, name in [('HYO','Huancayo'),('HYO','')]:
             changed = replace(record, site_id=code, site=name)
             output = dict(zip(self.store.table('renovaciones')[0], changed.report_values()))
             self.assertEqual(output['report_campus_code'], 'HYO')
-            self.assertEqual(output['report_campus'], name)
+            self.assertEqual(output['report_campus_name'], name)
             self.assertEqual(output['report_campus_source'], 'renewal')
 
     def test_booking_report_transforms_cross_midnight_and_keeps_canonical_identity_empty(self):
@@ -174,24 +259,24 @@ class PipelineTests(unittest.TestCase):
         self.save(record)
         row = dict(zip(*self.store.table('reservas')))
         self.assertEqual(row['booking_duration_hours'],1.5)
-        self.assertEqual(row['booking_duration_minutes'],90)
+        self.assertNotIn('booking_duration_minutes',row)
         self.assertEqual(row['booking_hour'],23)
         self.assertEqual(row['booking_month_number'],10)
-        self.assertEqual(row['booking_month'],'Octubre')
-        self.assertEqual(row['booking_confirmation'],'Cancelado')
-        self.assertEqual(row['booking_status'],'Cancelled by Admin')
-        self.assertEqual(row['user_name'],'')
-        self.assertEqual(row['user_lastname'],'')
-        self.assertEqual(row['source_user_name'],'Manual name')
+        self.assertEqual(row['booking_month_name'],'Octubre')
+        self.assertEqual(row['booking_attendance_status'],'-')
+        self.assertEqual(row['source_booking_status'],'Cancelled by Admin')
+        self.assertEqual(row['user_first_name'],'')
+        self.assertEqual(row['user_last_name'],'')
+        self.assertEqual(row['source_user_first_name'],'Manual name')
         self.assertEqual(row['booking_account_email'],'')
         self.assertEqual(row['booking_account'],'login123')
         changed = replace(record,status='Confirmed',booking_account='000123@example.invalid')
         row = dict(zip(self.store.table('reservas')[0],changed.report_values()))
-        self.assertEqual(row['booking_confirmation'],'Confirmado')
+        self.assertEqual(row['booking_attendance_status'],'-')
         self.assertEqual(row['booking_account_email'],'000123@example.invalid')
         changed = replace(record,status='Tentative')
         row = dict(zip(self.store.table('reservas')[0],changed.report_values()))
-        self.assertEqual(row['booking_confirmation'],'')
+        self.assertEqual(row['booking_attendance_status'],'-')
 
     def test_loan_report_uses_validated_hour_and_month_without_rewriting_source_time(self):
         from alma_libcal.errors import SourceError
@@ -334,3 +419,11 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(output["prestamos"]), 3)
         self.assertEqual(len(output["renovaciones"]), 2)
         self.assertEqual(len(output["reservas"]), 4)
+
+    def test_unicode_payload_limit_matches_transport_serialization(self):
+        config=demo_config(self.directory)
+        config.raw['google']={'spreadsheet_id':'test_spreadsheet'}
+        session=Session()
+        with self.assertRaisesRegex(PublicationError,'tamaño'):
+            SheetsPublisher(config,session).publish({'prestamos':[['title'],['á'*300_000]]})
+        self.assertEqual([call[0] for call in session.calls],['GET'])

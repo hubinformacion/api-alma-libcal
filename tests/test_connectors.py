@@ -324,7 +324,7 @@ class ConnectorTests(unittest.TestCase):
         result=dict(zip(report_headers('reservas'),record.report_values()))
         self.assertEqual(result['booking_date'],'2026-12-31')
         self.assertEqual(result['booking_month_number'],12)
-        self.assertEqual(result['booking_month'],'Diciembre')
+        self.assertEqual(result['booking_month_name'],'Diciembre')
         self.assertEqual(result['booking_hour'],23)
         self.assertEqual(result['booking_duration_hours'],1)
 
@@ -354,6 +354,25 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(computer.booking_form_answer_2, "")
         del row["q25460"]
         self.assertEqual(connector.normalize(row, fields, category).booking_form_answer_2, "")
+
+    def test_booking_additional_answers_and_attendance_are_preserved_by_explicit_field(self):
+        from alma_libcal.models import report_headers
+        fields={**self.config.raw['libcal']['fields'],'booking_check_in_status':'check_in_status',
+                'booking_phone':'q25458','booking_terms_accepted':'q25536','source_booking_row_id':'id',
+                'source_booking_category_name':'category_name'}
+        row={**json.loads(fixture('libcal_bookings.json'))[0],'check_in_status':'in',
+             'q25458':'012345678','q25536':'Acepto','id':123,'category_name':'Computadoras',
+             'status':'Cancelled by Admin'}
+        record=LibCalConnector(self.config,DemoHTTP()).normalize(row,fields,{'id':'101','name':'Computadoras y laptops','form_id':'0'})
+        result=dict(zip(report_headers('reservas'),record.report_values()))
+        self.assertEqual(result['booking_phone'],'012345678')
+        self.assertEqual(result['source_booking_terms_response'],'Acepto')
+        self.assertEqual(result['booking_terms_accepted'],1)
+        self.assertEqual(result['booking_attendance_status'],'Sí')
+        self.assertEqual(result['booking_status'],'Cancelado')
+        self.assertEqual(result['source_booking_row_id'],'123')
+        self.assertEqual(result['booking_category_code'],'101')
+        self.assertEqual(result['source_booking_category_name'],'Computadoras')
 
     def test_alma_email_is_preserved_without_becoming_user_id(self):
         fields = {"loan_id": "id", "activity_date": "date", "source_user_email": "email"}

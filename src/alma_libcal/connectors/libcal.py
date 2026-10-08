@@ -66,7 +66,8 @@ class LibCalConnector:
         settings = self.config.raw.get("libcal", {})
         base = https_url(required(settings, "base_url", "libcal"))
         params = {"lid": numeric_ids([location]), "date": day.isoformat(), "days": 0, "limit": 100,
-                  "form_answers": 1, "include_cancel": 1, "include_tentative": 1, "include_denied": 1}
+                  "form_answers": 1, "include_cancel": 1, "include_tentative": 1, "include_denied": 1,
+                  "check_in_status": 1}
         if category:
             params["cid"] = numeric_ids([category])
         headers = self.authenticate(settings, base)
@@ -212,6 +213,12 @@ class LibCalConnector:
             check_out=timestamp(mapped(row, fields, "check_out"), timezone),
             source_user_email=email,
             booking_account=mapped(row, fields, 'booking_account'),
+            booking_check_in_status=mapped(row, fields, 'booking_check_in_status'),
+            booking_phone=mapped(row, fields, 'booking_phone'),
+            booking_terms_accepted=mapped(row, fields, 'booking_terms_accepted'),
+            source_booking_row_id=mapped(row, fields, 'source_booking_row_id'),
+            booking_category_code=category['id'],
+            source_booking_category_name=mapped(row, fields, 'source_booking_category_name'),
             source_user_name=mapped(row, fields, 'source_user_name'),
             source_user_lastname=mapped(row, fields, 'source_user_lastname'),
             booking_form_id=form_id if form_id != "0" else "",

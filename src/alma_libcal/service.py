@@ -25,14 +25,14 @@ def extract(store, connectors, interval, report=print):
     return successful, failures
 
 
-def publish(store, publisher, datasets, interval, report=print):
+def publish(store, publisher, datasets, interval, report=print, reporting=None):
     if not datasets:
         report("No hay conjuntos completos disponibles para publicar.")
         return False
     revisions = store.revisions(datasets)
     run_ids = {dataset: store.start_run(dataset, "publish", interval) for dataset in datasets}
     try:
-        tables = {dataset: store.table(dataset) for dataset in datasets}
+        tables = {dataset: store.table(dataset, reporting) for dataset in datasets}
         tables["control"] = store.control(proposed=revisions)
         publisher.publish(tables)
     except PilotError as error:

@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Any
+import unicodedata
 from zoneinfo import ZoneInfo
 
 from .errors import SourceError
@@ -16,51 +17,72 @@ HEADERS = (
     "seat_id", "seat_name",
 )
 
-# Each report exposes its own vocabulary; storage keys remain internal.
+# Storage keeps original fields; the reporting contract has explicit meanings.
+USER_FIELDS = {
+    "source_user_id": "user_id", "source_user_email": "source_user_email",
+    "user_id": "verified_user_id", "user_email": "report_user_email",
+    "user_full_name": "user_full_name", "user_first_name": "user_name", "user_last_name": "user_lastname",
+    "user_type": "user_type", "user_modality": "user_modality", "user_campus_name": "user_campus",
+    "user_program_name": "user_program", "user_department_name": "user_department",
+    "user_business_unit_name": "user_business_unit", "user_match_status": "user_match_status",
+}
+TRACE_FIELDS = {"record_id": "record_id", "source_system": "source_system",
+                "record_version": "record_version", "record_changed_at": "record_changed_at"}
 ALMA_ITEM_FIELDS = {
-    "loan_id": "loan_id", "source_user_id": "user_id", "source_user_email": "source_user_email",
+    **TRACE_FIELDS, "loan_id": "loan_id", **USER_FIELDS,
     "item_id": "resource_id", "item_mms_id": "item_mms_id", "item_barcode": "item_barcode",
-    "item_material_type": "item_material_type", "item_policy": "item_policy", "item_title": "resource_name",
+    "item_material_type_code": "item_material_type", "item_material_type_name": "material_name",
+    "item_material_type_mapping_status": "material_mapping_status",
+    "item_policy_name": "item_policy", "item_title": "resource_name",
 }
 LOAN_FIELDS = {
     **ALMA_ITEM_FIELDS,
+    "loan_type": "loan_type", "loan_channel": "loan_channel",
     "loan_date": "activity_date", "loan_time": "loan_time", "in_house_loan_indicator": "in_house_loan_indicator",
-    "loan_campus_code": "site_id", "loan_campus": "site", "loan_library_code": "loan_library_code",
+    "loan_campus_code": "site_id", "loan_campus_name": "site_name", "loan_library_code": "loan_library_code",
     "loan_desk_code": "loan_desk_code", "loan_desk_name": "loan_desk_name",
     "loan_desk_description": "loan_desk_description", "loan_status": "status",
-    "loan_month": "report_month", "loan_month_number": "report_month_number", "loan_hour": "report_hour",
+    "loan_month_name": "report_month", "loan_month_number": "report_month_number", "loan_hour": "report_hour",
 }
 RENEWAL_FIELDS = {
-    **ALMA_ITEM_FIELDS,
-    "renewal_date": "activity_date", "renewal_campus_code": "site_id", "renewal_campus_name": "site",
+    **ALMA_ITEM_FIELDS, "renewal_type": "renewal_type",
+    "renewal_date": "activity_date", "renewal_campus_code": "site_id", "renewal_campus_name": "site_name",
     "renewal_quantity": "quantity", "loan_status": "status",
-    "loan_campus_code": "loan_origin_campus_code", "loan_campus": "loan_origin_campus",
-    "report_campus_code": "report_campus_code", "report_campus": "report_campus",
+    "loan_campus_code": "loan_origin_campus_code", "loan_campus_name": "loan_origin_campus_name",
+    "report_campus_code": "report_campus_code", "report_campus_name": "report_campus",
     "report_campus_source": "report_campus_source",
-    "renewal_month": "report_month", "renewal_month_number": "report_month_number",
+    "renewal_month_name": "report_month", "renewal_month_number": "report_month_number",
 }
 RESERVATION_FIELDS = {
-    "booking_id": "record_id", "source_user_id": "user_id", "user_email": "source_user_email",
-    **{name: name for name in ('user_name', 'user_lastname', 'user_type', 'user_modality', 'user_campus',
-                             'user_program', 'user_department', 'user_business_unit')},
-    "booking_month": "report_month", "booking_month_number": "report_month_number",
-    "booking_account_email": "booking_account_email", "booking_resource": "resource_name",
-    "booking_category": "category", "booking_campus": "site", "booking_date": "activity_date",
-    "booking_start": "starts_at", "booking_end": "ends_at", "booking_duration_hours": "duration_hours",
-    "booking_hour": "report_hour", "booking_status": "status", "booking_confirmation": "booking_confirmation",
-    "booking_form_answer_1": "booking_form_answer_1", "booking_form_answer_2": "booking_form_answer_2",
-    "booking_campus_code": "site_id", "booking_resource_id": "resource_id",
+    **TRACE_FIELDS, "booking_id": "record_id", "source_booking_row_id": "source_booking_row_id", **USER_FIELDS,
+    "booking_month_name": "report_month", "booking_month_number": "report_month_number",
+    "booking_account_email": "booking_account_email", "booking_resource_name": "resource_name",
+    "booking_category_code": "booking_category_code", "booking_category_name": "category",
+    "source_booking_category_name": "source_booking_category_name",
+    "booking_campus_name": "site_name", "booking_date": "activity_date",
+    "booking_start_at": "starts_at", "booking_end_at": "ends_at",
+    "booking_start_time": "start_time", "booking_end_time": "end_time",
+    "booking_duration_hours": "duration_hours", "booking_hour": "report_hour",
+    "booking_status": "booking_status_name", "source_booking_status": "status",
+    "booking_attendance_status": "attendance_status", "booking_attendance_indicator": "attendance_indicator",
+    "source_booking_attendance_status": "booking_check_in_status",
+    "booking_phone": "booking_phone", "booking_terms_accepted": "terms_indicator",
+    "source_booking_terms_response": "booking_terms_accepted",
+    "booking_participant_2_email": "booking_form_answer_1", "booking_participant_3_email": "booking_form_answer_2",
+    "booking_form_id": "booking_form_id", "booking_campus_code": "site_id", "booking_resource_id": "resource_id",
     "seat_id": "seat_id", "seat_name": "seat_name", "booking_account": "booking_account",
-    "source_user_name": "source_user_name", "source_user_lastname": "source_user_lastname",
-    "booking_duration_minutes": "duration_minutes",
+    "source_user_first_name": "source_user_name", "source_user_last_name": "source_user_lastname",
 }
 REPORT_FIELDS = {"prestamos": LOAN_FIELDS, "renovaciones": RENEWAL_FIELDS, "reservas": RESERVATION_FIELDS}
 MONTHS = ('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
           'Septiembre', 'Octubre', 'Noviembre', 'Diciembre')
 
 
-def report_headers(dataset):
-    return list(REPORT_FIELDS[dataset])
+def report_headers(dataset, reporting=None):
+    names = list(REPORT_FIELDS[dataset])
+    if (reporting or {}).get('include_date_parts', True):
+        return names
+    return [name for name in names if not name.endswith(('_month_name', '_month_number', '_hour'))]
 
 
 @dataclass(frozen=True)
@@ -142,6 +164,10 @@ def email_identifier(email: str) -> str:
     return parts[0] if len(parts) == 2 and all(parts) and not any(c.isspace() for c in email) else ''
 
 
+def campus_name(value):
+    return value[7:].strip() if value.casefold().startswith('campus ') else value
+
+
 def quantity(value: str) -> int:
     try:
         number = Decimal(value)
@@ -201,6 +227,16 @@ class Record:
     user_program: str = ""
     user_department: str = ""
     user_business_unit: str = ""
+    user_full_name: str = ""
+    verified_user_id: str = ""
+    verified_user_email: str = ""
+    user_match_status: str = "pending"
+    booking_check_in_status: str = ""
+    booking_phone: str = ""
+    booking_terms_accepted: str = ""
+    source_booking_row_id: str = ""
+    booking_category_code: str = ""
+    source_booking_category_name: str = ""
 
     def __post_init__(self):
         if self.dataset not in DATASETS or not self.record_id:
@@ -217,8 +253,19 @@ class Record:
         values["usage_type"] = ("Uso interno" if internal else "Préstamo") if self.dataset == "prestamos" else ""
         return [values[name] for name in HEADERS]
 
-    def report_values(self) -> list:
+    def report_values(self, reporting=None, audit=None) -> list:
         values = asdict(self)
+        reporting = reporting or {}
+        values.update(source_system='libcal' if self.dataset == 'reservas' else 'alma',
+                      record_version=0, record_changed_at='', report_user_email=self.verified_user_email or self.source_user_email)
+        values.update(audit or {})
+        values.update(site_name=campus_name(self.site), loan_origin_campus_name=campus_name(self.loan_origin_campus))
+        if self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y' and not self.user_id:
+            values['user_match_status'] = 'not_applicable'
+        catalog = reporting.get('material_types', {})
+        values['material_name'] = catalog.get(self.item_material_type, 'Sin clasificar') if self.item_material_type else ''
+        values['material_mapping_status'] = ('mapped' if self.item_material_type in catalog else
+                                             'unmapped' if self.item_material_type else 'missing')
         # Old snapshots did not store the original loan ID separately.
         if self.dataset in ("prestamos", "renovaciones") and not self.loan_id:
             values["loan_id"] = self.record_id.split(":", 1)[0]
@@ -227,7 +274,19 @@ class Record:
         values.update(report_month=MONTHS[day.month - 1], report_month_number=day.month, report_hour='')
         if self.dataset == 'prestamos':
             values['report_hour'] = hour(self.loan_time)
+            desk = self.loan_desk_description + ' ' + self.loan_desk_name
+            normalized = ''.join(ch for ch in unicodedata.normalize('NFD', desk.casefold()) if not unicodedata.combining(ch))
+            if self.in_house_loan_indicator == 'Y':
+                label, channel = 'Uso interno', 'in_house'
+            elif 'autoprestamo' in normalized:
+                label, channel = 'Préstamo regular por autopréstamo', 'self_check'
+            elif desk.strip():
+                label, channel = 'Préstamo regular por bibliotecario', 'staff'
+            else:
+                label, channel = 'Préstamo regular (módulo sin asignar)', 'unassigned'
+            values.update(loan_type=label, loan_channel=channel)
         elif self.dataset == 'renovaciones':
+            values['renewal_type'] = 'Renovación'
             # Choose one campus pair, never mix renewal code with loan name.
             if self.site_id or self.site:
                 code, name, origin = self.site_id, self.site, 'renewal'
@@ -235,24 +294,36 @@ class Record:
                 code, name, origin = self.loan_origin_campus_code, self.loan_origin_campus, 'loan'
             else:
                 code, name, origin = '', '', 'unassigned'
-            values.update(report_campus_code=code, report_campus=name, report_campus_source=origin)
+            values.update(report_campus_code=code, report_campus=campus_name(name), report_campus_source=origin)
         else:
             values['booking_account_email'] = self.booking_account if email_identifier(self.booking_account) else ''
             values['duration_minutes'] = ''
             values['duration_hours'] = ''
             status = self.status.strip().casefold()
-            values['booking_confirmation'] = ('Confirmado' if status == 'confirmed' else
-                                              'Cancelado' if status.startswith(('cancelled', 'canceled')) else '')
+            values['booking_status_name'] = ('Confirmado' if status == 'confirmed' else
+                                            'Cancelado' if status.startswith(('cancelled', 'canceled')) else self.status)
+            labels = reporting.get('attendance_statuses', {'in': 'Sí', 'out': 'Sí', '-': '-', 'no': 'No'})
+            raw_attendance = self.booking_check_in_status.strip().casefold()
+            attendance = labels.get(raw_attendance, 'Desconocido') if raw_attendance else '-'
+            values['attendance_status'] = attendance
+            values['attendance_indicator'] = 1 if attendance == 'Sí' else 0 if attendance == 'No' else ''
+            terms = self.booking_terms_accepted.strip().casefold()
+            values['terms_indicator'] = (1 if terms in ('acepto','sí','si','yes','true','1') else
+                                         0 if terms in ('no','false','0') else '')
+            values.update(start_time='', end_time='')
             if self.starts_at:
                 start = datetime.fromisoformat(self.starts_at)
                 values['report_hour'] = start.hour
+                values['start_time'] = start.strftime('%H:%M:%S')
                 if self.ends_at:
-                    duration = (datetime.fromisoformat(self.ends_at) - start).total_seconds() / 60
+                    end = datetime.fromisoformat(self.ends_at)
+                    values['end_time'] = end.strftime('%H:%M:%S')
+                    duration = (end - start).total_seconds() / 60
                     if duration < 0:
                         raise SourceError('Una reserva tiene duración negativa.')
                     values['duration_minutes'] = duration
                     values['duration_hours'] = duration / 60
-        return [values[name] for name in REPORT_FIELDS[self.dataset].values()]
+        return [values[REPORT_FIELDS[self.dataset][name]] for name in report_headers(self.dataset, reporting)]
 
 
 @dataclass

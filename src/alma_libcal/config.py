@@ -86,6 +86,17 @@ def load_config(path: Path) -> Config:
         with path.open("rb") as handle:
             raw = tomllib.load(handle)
         project = raw.get("project", {})
+        reporting = raw.get('reporting', {})
+        if not isinstance(reporting, dict):
+            raise ConfigError('Configura reporting como una sección TOML.')
+        if type(reporting.get('include_date_parts', True)) is not bool:
+            raise ConfigError('reporting.include_date_parts debe ser true o false.')
+        for name in ('material_types', 'attendance_statuses'):
+            catalog = reporting.get(name, {})
+            if not isinstance(catalog, dict) or any(not isinstance(k,str) or not k or not isinstance(v,str) or not v for k,v in catalog.items()):
+                raise ConfigError(f'Configura reporting.{name} como pares de código y nombre no vacíos.')
+        if any(v not in ('Sí','No','-') for v in reporting.get('attendance_statuses', {}).values()):
+            raise ConfigError('reporting.attendance_statuses solo admite Sí, No o - como resultado.')
         timezone = project.get("timezone", "America/Lima")
         ZoneInfo(timezone)
         start = date.fromisoformat(project.get("start_date", "2026-10-06"))

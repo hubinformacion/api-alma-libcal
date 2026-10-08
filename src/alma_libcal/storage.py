@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -56,7 +57,20 @@ class Store:
                 date_from TEXT NOT NULL, date_to TEXT NOT NULL, row_count INTEGER NOT NULL DEFAULT 0,
                 error TEXT NOT NULL DEFAULT ''
             );
+            CREATE TABLE IF NOT EXISTS record_versions (
+                dataset TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL,
+                payload_hash TEXT NOT NULL, payload TEXT NOT NULL, observed_at TEXT NOT NULL,
+                observation_type TEXT NOT NULL,
+                PRIMARY KEY(dataset,record_id,version)
+            );
         """)
+        columns = {row[1] for row in self.db.execute('PRAGMA table_info(records)')}
+        for name, definition in {'record_version': 'INTEGER NOT NULL DEFAULT 0',
+                                 'record_changed_at': "TEXT NOT NULL DEFAULT ''",
+                                 'first_observed_at': "TEXT NOT NULL DEFAULT ''",
+                                 'last_observed_at': "TEXT NOT NULL DEFAULT ''"}.items():
+            if name not in columns:
+                self.db.execute(f'ALTER TABLE records ADD COLUMN {name} {definition}')
         with self.db:
             self.db.execute("UPDATE runs SET status='interrupted',finished_at=?,error='Ejecución anterior interrumpida.' WHERE status='running'", (now(),))
 
@@ -78,14 +92,36 @@ class Store:
 
     def save(self, dataset, interval, batch, run_id):
         batch.validate(dataset, interval)
+        observed_at = now()
         with self.db:
             for record in batch.records:
+                payload = json.dumps(asdict(record), ensure_ascii=False, sort_keys=True)
+                previous = self.db.execute('SELECT * FROM records WHERE dataset=? AND record_id=?',
+                                           (dataset,record.record_id)).fetchone()
+                version = previous['record_version'] if previous else 0
+                changed_at = previous['record_changed_at'] if previous else ''
+                old_payload = None
+                if previous:
+                    old_payload = json.dumps(asdict(Record(**json.loads(previous['payload']))),
+                                             ensure_ascii=False, sort_keys=True)
+                    if not version:
+                        version = 1
+                        changed_at = observed_at
+                        self.save_version(dataset,record.record_id,version,old_payload,observed_at,'baseline')
+                if payload != old_payload:
+                    version += 1
+                    changed_at = observed_at
+                    self.save_version(dataset,record.record_id,version,payload,observed_at,'update' if previous else 'new')
+                first_observed_at = (previous['first_observed_at'] if previous else '') or observed_at
                 self.db.execute("""
-                    INSERT INTO records(dataset,record_id,activity_date,payload) VALUES(?,?,?,?)
+                    INSERT INTO records(dataset,record_id,activity_date,payload,record_version,
+                                        record_changed_at,first_observed_at,last_observed_at) VALUES(?,?,?,?,?,?,?,?)
                     ON CONFLICT(dataset,record_id) DO UPDATE SET
-                        activity_date=excluded.activity_date,payload=excluded.payload
+                        activity_date=excluded.activity_date,payload=excluded.payload,
+                        record_version=excluded.record_version,record_changed_at=excluded.record_changed_at,
+                        first_observed_at=excluded.first_observed_at,last_observed_at=excluded.last_observed_at
                 """, (dataset, record.record_id, record.activity_date,
-                      json.dumps(asdict(record), ensure_ascii=False)))
+                      payload, version, changed_at, first_observed_at, observed_at))
             self.db.execute("""
                 INSERT INTO snapshots(dataset,revision,extracted_at,source_updated_at,source_available_at)
                 VALUES(?,1,?,?,?) ON CONFLICT(dataset) DO UPDATE SET
@@ -96,6 +132,11 @@ class Store:
             self.db.execute("UPDATE runs SET status='extracted',finished_at=?,row_count=? WHERE id=?",
                             (now(), len(batch.records), run_id))
 
+    def save_version(self, dataset, record_id, version, payload, observed_at, observation_type):
+        self.db.execute('INSERT INTO record_versions VALUES(?,?,?,?,?,?,?)',
+                        (dataset,record_id,version,hashlib.sha256(payload.encode()).hexdigest(),
+                         payload,observed_at,observation_type))
+
     def available(self):
         return [row[0] for row in self.db.execute("SELECT dataset FROM snapshots ORDER BY dataset")]
 
@@ -103,8 +144,13 @@ class Store:
         return [Record(**json.loads(row[0])) for row in self.db.execute(
             "SELECT payload FROM records WHERE dataset=? ORDER BY activity_date,record_id", (dataset,))]
 
-    def table(self, dataset):
-        return [report_headers(dataset)] + [record.report_values() for record in self.records(dataset)]
+    def table(self, dataset, reporting=None):
+        table = [report_headers(dataset, reporting)]
+        for row in self.db.execute('SELECT payload,record_version,record_changed_at FROM records WHERE dataset=? ORDER BY activity_date,record_id', (dataset,)):
+            record = Record(**json.loads(row['payload']))
+            table.append(record.report_values(reporting, {'record_version':row['record_version'],
+                                                          'record_changed_at':row['record_changed_at']}))
+        return table
 
     def count(self, dataset):
         return self.db.execute("SELECT COUNT(*) FROM records WHERE dataset=?", (dataset,)).fetchone()[0]

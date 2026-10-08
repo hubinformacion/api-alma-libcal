@@ -70,27 +70,50 @@ Omitir `--extract-only` permite consultar, guardar y publicar. Para incluir LibC
 
 `check-libcal` admite `--date YYYY-MM-DD` para hoy o fechas futuras. Los IDs de campus, categorías y formularios ya están en `config.toml`.
 
-## Transformaciones implementadas
+## Columnas y transformaciones
 
-### Alma
+Los tres reportes usan inglés en `snake_case`: `_code` para códigos, `_name` para nombres, `_date` para fechas ISO, `_time` para horas y `_at` para fecha/hora con zona. `record_id` es la clave del registro dentro de su conjunto; `source_system` indica Alma o LibCal. Las claves originales se conservan para comparar y actualizar.
 
-El mapa de Renewals ya incluye el campus del préstamo original y el nuevo orden de columnas. Se conservan `renewal_campus_code/name` y se añaden `loan_campus_code` y `loan_campus`.
+### Materiales y préstamos
 
-Para agrupar usa `report_campus_code` y `report_campus`: priorizan el campus de renovación y, si ambos campos están vacíos, usan el préstamo original. `report_campus_source` identifica `renewal`, `loan` o `unassigned`. Si existe un campus parcial, no se mezclan códigos y nombres de orígenes distintos. La clave interna de la renovación sigue usando el campus original de renovación para evitar duplicados al completar la referencia.
+El código de Alma se conserva en `item_material_type_code`; su nombre se obtiene de **`[reporting.material_types]` en `config.toml`**. Ya contiene las 20 equivalencias aprobadas. Puedes añadir o eliminar pares allí; no necesitas otro CSV ni modificar Python. `item_material_type_mapping_status` identifica códigos mapeados, ausentes o desconocidos. Un código nuevo queda como Sin clasificar y conserva su valor original.
 
-Préstamos incorporan `loan_month`, `loan_month_number` y `loan_hour`; renovaciones, `renewal_month` y `renewal_month_number`. La hora se deriva de Loan Time, que se conserva tal como viene. Los meses están en español y las fechas en formato ISO.
+`loan_type` distingue Uso interno (indicador Y), Préstamo regular por autopréstamo (módulo cuyo nombre/descripción contiene autopréstamo, sin depender de mayúsculas o tildes) y Préstamo regular por bibliotecario (otros módulos). Si no hay módulo, se conserva sin asignar. `loan_channel` expone la clasificación para filtros.
 
-### LibCal
+Las renovaciones se extraen por Renewal Date y su cantidad se suma desde `renewal_quantity`. `renewal_type` es Renovación: no se deduce el canal de la renovación a partir del módulo del préstamo original. No existe un ID individual de renovación en este análisis: `record_id` identifica el agregado préstamo + fecha + campus de renovación; una fila puede contener varias renovaciones.
 
-La salida de reservas contiene los atributos operativos del reporte: correo, recurso, categoría, campus, fecha, inicio/fin, mes, número de mes, hora, estado, confirmación y correos de integrantes. Incluye IDs y puestos para seguimiento.
+Para agrupar renovaciones usa `report_campus_code/name`. Prioriza el campus de renovación y, si ambos campos están vacíos, usa el préstamo original. `report_campus_source` distingue renewal, loan y unassigned. Las dos procedencias se conservan y los pares de campus no se mezclan.
 
-- `booking_duration_hours`: horas decimales entre inicio y fin, incluso si cruza medianoche. `booking_duration_minutes` conserva también la medida en minutos. Es duración reservada, no uso efectivo medido por check-in/check-out.
-- `booking_confirmation`: Confirmado para Confirmed; Cancelado para los estados Cancelled/Canceled. Otros estados quedan sin clasificar en esta columna y se conservan en `booking_status`. **Corrección pendiente:** el usuario aclaró que esta columna representa asistencia marcada por los agentes (Sí/No/-), independiente del estado de reserva. Se propone booking_attendance_status y consultar el estado de check-in. La regla actual no reproduce esta columna del reporte manual y debe corregirse antes de usarla para medir asistencia.
-- `source_user_id`: parte anterior a `@` del correo cuando no hay ID explícito. Conserva ceros iniciales; es una clave candidata, no un DNI validado con la institución.
-- `booking_account_email`: se llena solo si `account` contiene un correo. El valor original se conserva en `booking_account`; no se inventa un dominio para un login.
-- `user_name`, `user_lastname`, `user_type`, `user_modality`, `user_campus`, `user_program`, `user_department` y `user_business_unit` quedan vacíos hasta cruzar con la base universitaria. Los nombres manuales de LibCal se conservan aparte en `source_user_name/lastname`; `user_email` conserva por ahora el correo original para el cruce.
+### Reservas y asistencia
 
-Inicio/fin se normalizan a America/Lima; la fecha, mes y hora se calculan desde el inicio local. Los formularios 8253 aportan los correos de integrantes 2 y 3; las demás categorías dejan esas columnas vacías.
+`booking_id` conserva bookId, `source_booking_row_id` conserva el id adicional de la respuesta y los IDs de campus/categoría/recurso/puesto permiten rastrear la operación. La reserva cuenta una vez; los integrantes adicionales no crean otras reservas.
+
+- `booking_status`: estado traducido, independiente de asistencia; `source_booking_status` conserva el valor original.
+- `booking_attendance_status`: Sí, No o -. `source_booking_attendance_status` conserva la marcación original. Las equivalencias están en **`[reporting.attendance_statuses]`**; los estados nuevos no reconocidos quedan como Desconocido, sin inferir ausencia.
+- `booking_attendance_indicator`: 1 para Sí, 0 para No y vacío para - o Desconocido. Así los registros sin marcación no entran en el denominador de asistencia. Los códigos in/out indican uso registrado; el código `no` se traduce explícitamente a No cuando la API lo entrega. Hay que verificar cualquier otro código antes de incorporarlo al catálogo.
+- `booking_duration_hours`: diferencia exacta entre timestamps, incluso al cruzar medianoche. Es tiempo reservado, no duración de uso medida por el gestor. No se añade 0,01 horas ni se redondea antes de sumar.
+- `booking_start_at/end_at`: fecha/hora normalizada a America/Lima. `booking_start_time/end_time` presentan HH:MM:SS para comparar con el reporte manual.
+- `booking_phone`, `booking_participant_2_email`, `booking_participant_3_email`: respuestas por ID de pregunta, sin textos de preguntas ni dependencia de su posición.
+- `source_booking_terms_response`: respuesta original a términos; `booking_terms_accepted`: 1, 0 o vacío según la respuesta reconocida.
+- `booking_category_code/name` distingue ID y grupo de reportería; `source_booking_category_name` conserva el nombre de origen. El prefijo Campus se retira en los nombres de campus de reporte; SQLite conserva el valor original.
+
+### Usuarios
+
+`source_user_id/email` conservan claves originales. En LibCal se obtiene una clave candidata desde la parte anterior a @ cuando no hay ID explícito; no se declara DNI verificado. Los nombres capturados manualmente quedan en `source_user_first_name/last_name`.
+
+`user_id`, `user_full_name`, `user_first_name`, `user_last_name`, tipo, modalidad, campus, programa, departamento y unidad de negocio se completarán con la universidad. `user_match_status` es pending hasta implementar el cruce, o not_applicable para usos internos sin usuario. `user_email` conserva por ahora el correo de origen; se reemplazará por el institucional validado al cruzar. Los registros sin coincidencia no se eliminarán.
+
+El perfil académico debe ser el vigente **en la fecha de la operación**, según tu decisión. La conexión a la base y la selección de vigencias aún no están implementadas; sin historial institucional no se inventará una situación pasada.
+
+### Fechas, meses y espacio
+
+SQLite guarda fechas/horas base; mes, número de mes y hora se calculan al exportar. Se mantienen por comodidad y compatibilidad con tu reporte manual. Si usarás una tabla calendario de Power BI y quieres omitirlos de Sheets, cambia **`[reporting].include_date_parts = false`**. Se conservan las fechas y horas completas. Los meses tienen nombres en español.
+
+## Trazabilidad de actualizaciones
+
+`record_version` y `record_changed_at` indican la versión del contenido guardado. Una extracción idéntica actualiza la observación sin crear otra versión; un cambio conserva el estado previo y crea la nueva versión en **`record_versions`** de SQLite. No se añaden copias a la tabla actual. Los cambios de etiquetas del catálogo se aplican al publicar sin modificar los códigos originales.
+
+La auditoría empieza con esta actualización. Los registros que ya existían se conservan como baseline; no se reconstruyen versiones previas que nunca guardamos. `first_observed_at/last_observed_at` están disponibles en la tabla records. Estos tiempos son de observación local, no de realización de la operación.
 
 ## Cómo publica y qué falta para escalar
 
@@ -114,9 +137,9 @@ En `docs/` solo se conservan `1_1.yml` (API LibCal) y `database/` (arquitectura 
 
 El orden de trabajo siguiente es:
 
-1. Comparar las transformaciones con tus reportes terminados. Coloca `alma-prestamos.csv`, `alma-renovaciones.csv` y `libcal.csv` en **`data/referencias/`**. Esta carpeta es local y está excluida de Git; no se carga a Sheets automáticamente.
+1. Revisar las nuevas columnas y la asistencia. Los CSV manuales de enero en `data/referencias/` siguen como referencia privada; los catálogos ya están integrados en config.toml.
 2. Implementar publicación incremental y por lotes antes de ampliar la carga histórica.
-3. Definir el cruce con la base universitaria y la vigencia de los atributos académicos.
+3. Implementar el cruce con la universidad para entregar perfiles vigentes a la fecha de cada operación, como ya acordamos.
 4. Resolver la fuente histórica de LibCal y programar las ejecuciones. Su endpoint actual no permite recuperar fechas pasadas.
 
 Código en `src/alma_libcal/`; pruebas en `tests/`. Para comprobar el programa con datos ficticios:
@@ -124,15 +147,3 @@ Código en `src/alma_libcal/`; pruebas en `tests/`. Para comprobar el programa c
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
-
-## Estandarización en revisión
-
-Los archivos manuales recibidos contienen 2.612 filas de Alma y 2.760 de LibCal. En `data/verificacion/propuesta-encabezados.csv` está el nombre propuesto para cada columna y su regla; `propuesta-tipos-material.csv` contiene equivalencias candidatas obtenidas por barcode. Son propuestas locales, todavía no aplicadas a los encabezados publicados.
-
-La convención propuesta es inglés en snake_case: `_code` para códigos, `_name` para nombres de catálogos, `_date` para fecha, `_time` para hora, `_at` para fecha/hora con zona y `_duration_hours` para horas decimales. Los atributos institucionales usan `user_`; las claves originales de los sistemas usan `source_user_`.
-
-Los pares de preguntas/respuestas de LibCal se separarán por significado: `booking_phone`, `booking_participant_2_email`, `booking_participant_3_email` y `booking_terms_accepted`. El texto de las preguntas no se exportará. El CSV contiene preguntas distintas en la misma posición; la implementación debe usar IDs de pregunta.
-
-Se recomienda cruzar usuarios dentro del programa y publicar las columnas enriquecidas, manteniendo las operaciones originales en SQLite. Los registros sin coincidencia no se eliminarán y los usos internos sin usuario se identificarán como no aplicables al cruce. Falta decidir si los atributos académicos reflejarán la fecha de la operación o la situación actual. Los reportes de referencia corresponden a enero de 2026; las muestras API disponibles son de octubre, así que sus conteos no son directamente comparables.
-
-Las equivalencias de categorías se gestionarán mediante catálogos de código y nombre aprobados, separados de los cálculos de fechas/duración. El significado de booking_confirmation ya se aclaró: asistencia, no confirmación administrativa. Quedan las reglas de clasificación de préstamos/renovaciones y el catálogo completo de materiales. El CSV manual contiene 170 duraciones con 0,01 horas adicionales respecto de inicio/fin; la propuesta mantiene el cálculo exacto y documenta esa diferencia.

@@ -103,7 +103,7 @@ def main(argv=None):
                     if missing:
                         print("Sin extracción completa previa: " + ", ".join(missing) + ".")
                     selected = [dataset for dataset in selected if dataset in available]
-                    success = publish(store, SheetsPublisher(config), selected, interval)
+                    success = publish(store, SheetsPublisher(config), selected, interval, reporting=config.raw.get('reporting', {}))
                     return 0 if success and not missing else 1
                 http = HTTPClient()
                 connectors = {dataset: (LibCalConnector(config, http) if dataset == "reservas"
@@ -111,7 +111,7 @@ def main(argv=None):
                 successful, failures = extract(store, connectors, interval)
                 if arguments.extract_only:
                     return 1 if failures else 0
-                published = publish(store, SheetsPublisher(config), successful, interval)
+                published = publish(store, SheetsPublisher(config), successful, interval, reporting=config.raw.get('reporting', {}))
                 return 0 if published and not failures else 1
             finally:
                 store.close()
