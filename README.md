@@ -82,7 +82,7 @@ Los archivos de `data/` son locales, contienen información personal y no se pub
 
 Antes de producción debemos preparar una carga inicial desde una exportación administrativa con IDs, fechas/horas completas, recursos, estados, asistencia y respuestas. Su importador y la consulta histórica por ID todavía no están implementados. Luego necesitaremos capturar cambios con frecuencia suficiente para conservar cancelaciones y asistencias posteriores; una consulta semanal aislada no cubre la ventana de 24 horas.
 
-El orden siguiente es: validar esta nueva muestra, implementar publicación incremental por lotes, conectar la base universitaria en modo lectura y resolver vigencias históricas, completar el histórico de LibCal y finalmente programar jobs con control de fallos y recuperación.
+El orden siguiente es: validar esta nueva muestra, conectar la base universitaria en modo lectura y resolver vigencias históricas, implementar publicación incremental por lotes antes de ampliar el volumen, completar el histórico de LibCal y finalmente programar jobs con control de fallos y recuperación.
 
 La publicación actual sustituye las tablas seleccionadas en una petición atómica y tiene un límite local de 1,8 MB. No compara filas nuevas/modificadas en Sheets. Para cargas grandes primero debe ampliarse el publicador.
 
