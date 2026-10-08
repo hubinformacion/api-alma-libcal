@@ -1,4 +1,5 @@
 from .errors import PilotError
+from .models import sheet_table
 
 
 def extract(store, connectors, interval, report=print):
@@ -32,7 +33,7 @@ def publish(store, publisher, datasets, interval, report=print, reporting=None):
     revisions = store.revisions(datasets)
     run_ids = {dataset: store.start_run(dataset, "publish", interval) for dataset in datasets}
     try:
-        tables = {dataset: store.table(dataset, reporting) for dataset in datasets}
+        tables = {dataset: sheet_table(dataset, store.table(dataset, reporting), reporting) for dataset in datasets}
         tables["control"] = store.control(proposed=revisions)
         publisher.publish(tables)
     except PilotError as error:

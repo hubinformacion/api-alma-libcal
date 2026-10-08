@@ -4,11 +4,11 @@
 
 Python 3.12 pilot: Alma loans/renewals and LibCal bookings go into SQLite and separate Sheets tabs. Validation is manual; scheduled jobs and institutional enrichment are pending.
 
-The institutional database will supply verified user attributes effective on the operation date. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
+The institutional database will supply verified user attributes effective on the operation date. Match exact registered email first; use authoritative identifiers as fallback. For valid labor roles, docente precedes administrativo. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
 
 ## Structure and Configuration
 
-Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` defines report headers and transformations; `storage.py` manages current records, versions and execution status. Automated tests are in `tests/`, with synthetic fixtures in `src/alma_libcal/fixtures/`.
+Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` defines report headers and transformations; `storage.py` manages current records, versions and execution status. Tests use synthetic fixtures. Read-only institutional discovery queries are in `sql/institutional/` for manual SSMS execution.
 
 `README.md` is the sole usage guide. Local `.env` supplies Alma/LibCal secrets, `config.toml` supplies routes, maps and reporting catalogs, and `secrets/` contains Google OAuth JSON. Templates are committed; populated configuration is ignored. Private references under `data/referencias/` are not repository dependencies.
 
@@ -30,7 +30,7 @@ Loans use the source loan ID. Renewal keys identify loan/date/renewal-campus agg
 
 Preserve raw material codes and question IDs. Catalogs live in TOML; derive date parts when exporting. Preserve changed payloads in `record_versions`; identical extractions must not create extra versions.
 
-Sheets publication currently replaces selected tabs atomically and rejects oversized requests before writing. It is not incremental. LibCal's listing endpoint ignores past dates; recent updates cover only 24 hours. Do not claim complete historical coverage from either.
+Sheets projects compact columns; full data remains in SQLite. Publication replaces selected tabs atomically and rejects oversized requests; it is not incremental. LibCal's listing endpoint ignores past dates; recent updates cover only 24 hours. Do not claim complete historical coverage from either.
 
 ## Documentation, Git and Security
 

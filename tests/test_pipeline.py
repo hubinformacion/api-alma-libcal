@@ -183,9 +183,43 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(row["user_email"], "one@example.invalid")
         self.assertEqual(row["booking_participant_2_email"], "two@example.invalid")
         self.assertEqual(row["booking_participant_3_email"], "three@example.invalid")
-        self.assertEqual(row["source_booking_status"], "Cancelled by Admin")
-        self.assertEqual(row["seat_id"], "000123")
+        self.assertEqual(row["booking_status"], "Cancelado")
+        self.assertNotIn('source_booking_status', row)
+        self.assertNotIn('seat_id', row)
+        full = dict(zip(*self.store.table('reservas')))
+        self.assertEqual(full['source_booking_status'], 'Cancelled by Admin')
+        self.assertEqual(full['seat_id'], '000123')
         self.assertEqual(row["seat_name"], "Puesto 01")
+
+    def test_compact_publication_preserves_keys_and_full_report_and_audit(self):
+        self.save(replace(self.record,loan_desk_name='módulo 1',item_material_type='BOOK'))
+        publisher=CapturePublisher()
+        self.assertTrue(publish(self.store,publisher,['prestamos'],self.interval,self.report,
+                                reporting={'material_types':{'BOOK':'Libro'},'sheet_layout':'compact'}))
+        table=publisher.tables['prestamos']
+        row=dict(zip(*table))
+        self.assertEqual(row['record_id'],'L1')
+        self.assertEqual(row['item_material_type_name'],'Libro')
+        self.assertNotIn('loan_channel',row)
+        self.assertNotIn('record_changed_at',row)
+        self.assertNotIn('loan_month_name',row)
+        full=self.store.table('prestamos',{'material_types':{'BOOK':'Libro'}})
+        self.assertIn('loan_channel',full[0])
+        self.assertIn('item_material_type_code',full[0])
+        self.assertEqual(self.store.records('prestamos')[0].item_material_type,'BOOK')
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0],1)
+
+    def test_full_and_custom_projection_can_be_restored_without_reextracting(self):
+        from alma_libcal.models import sheet_table
+        self.save(self.record)
+        table=self.store.table('prestamos')
+        self.assertEqual(sheet_table('prestamos',table,{'sheet_layout':'full'}),table)
+        reduced=sheet_table('prestamos',table,{'sheet_columns':{'prestamos':['record_id','loan_type']}})
+        self.assertEqual(reduced[0],['record_id','loan_type'])
+        self.assertEqual(reduced[1][0],'L1')
+        for fields in (['loan_type'],['record_id','not-a-column'],['record_id','record_id']):
+            with self.assertRaises(SourceError):
+                sheet_table('prestamos',table,{'sheet_columns':{'prestamos':fields}})
 
     def test_old_payloads_load_with_empty_new_contact_fields(self):
         self.save(self.record)

@@ -91,6 +91,17 @@ def load_config(path: Path) -> Config:
             raise ConfigError('Configura reporting como una sección TOML.')
         if type(reporting.get('include_date_parts', True)) is not bool:
             raise ConfigError('reporting.include_date_parts debe ser true o false.')
+        if reporting.get('sheet_layout', 'compact') not in ('compact', 'full'):
+            raise ConfigError('reporting.sheet_layout debe ser compact o full.')
+        overrides = reporting.get('sheet_columns', {})
+        if not isinstance(overrides, dict):
+            raise ConfigError('reporting.sheet_columns debe contener listas por conjunto.')
+        from .models import DATASETS, report_headers
+        for dataset, names in overrides.items():
+            if dataset not in DATASETS or not isinstance(names, list) or not names or any(not isinstance(n,str) for n in names):
+                raise ConfigError('Configura reporting.sheet_columns con listas de nombres de columnas.')
+            if 'record_id' not in names or len(set(names)) != len(names) or any(n not in report_headers(dataset, reporting) for n in names):
+                raise ConfigError('Las columnas de Sheets deben existir, ser únicas e incluir record_id.')
         for name in ('material_types', 'attendance_statuses'):
             catalog = reporting.get(name, {})
             if not isinstance(catalog, dict) or any(not isinstance(k,str) or not k or not isinstance(v,str) or not v for k,v in catalog.items()):

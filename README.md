@@ -61,6 +61,19 @@ Todos se preceden de `.venv/bin/python -m alma_libcal`:
 | `auth-google --open-browser` | Renovar autorización si Google la requiere |
 | `demo` | Demostración ficticia, sin servicios reales; salida en `demo-output/` |
 
+## Salida compacta de Sheets
+
+`[reporting].sheet_layout = "compact"` publica solo la información de reportería: ahora 21 columnas para préstamos, 23 para renovaciones y 28 para reservas. Se conserva `record_id`; en renovaciones se conserva también `loan_id`. Se omiten columnas técnicas duplicadas, como loan_channel, códigos de material, versiones y marcas de auditoría. Meses y horas derivadas no forman parte del esquema compacto; fechas y timestamps base permiten calcularlos.
+
+SQLite y los reportes completos mantienen todos los atributos. `sheet_layout = "full"` permite recuperarlos en Sheets sin volver a consultar las APIs. Si necesitas personalizar una pestaña, puedes añadir en el mismo config.toml:
+
+```toml
+[reporting.sheet_columns]
+prestamos = ["record_id", "user_email", "loan_type", "loan_date", "loan_campus_name"]
+```
+
+La lista reemplaza la selección de ese conjunto. Los nombres deben existir, ser únicos e incluir record_id. El formato de una pestaña cambia en la siguiente publicación. `control` permanece completo. Esta selección reduce columnas; la publicación aún incluye todo el histórico local y no es incremental.
+
 ## Datos y reglas de reporte
 
 - **SQLite:** `data/pilot.sqlite3`. `records` guarda el estado actual, `record_versions` conserva cambios de contenido, `runs` registra ejecuciones y `snapshots` su estado. Repetir datos idénticos no crea copias ni versiones nuevas. `record_changed_at` es observación local, no fecha de operación.
@@ -75,6 +88,24 @@ Todos se preceden de `.venv/bin/python -m alma_libcal`:
 - **Meses y horas:** se calculan al exportar, sin duplicarlos en SQLite. Para omitir esas columnas en Sheets y utilizar un calendario de Power BI, cambia `[reporting].include_date_parts = false`.
 
 Los archivos de `data/` son locales, contienen información personal y no se publican en GitHub. Los CSV de esta prueba están en **`data/reportes/`**, uno por conjunto y fecha. Son copias de ese momento: `sync` no los actualiza automáticamente. Las referencias aportadas para diseño se conservan localmente en `data/referencias/`; la especificación de API y la arquitectura institucional están en `data/referencias/technical/`, fuera del repositorio publicado.
+
+## Piloto institucional mediante SQL Management Studio
+
+Los archivos de **`sql/institutional/`** contienen consultas de lectura preparadas con la arquitectura recibida. Todavía deben ejecutarse en tu base; aquí no hay conexión a ese servidor. No requieren instalar Python ni WSL en el equipo institucional.
+
+1. Selecciona la base institucional en SSMS y ejecuta **00_metadatos.sql** para confirmar objetos, columnas y claves. Guarda cada cuadrícula con encabezados según el nombre indicado en sus comentarios.
+2. En **01_identificar_persona.sql**, sustituye los NULL del encabezado por `N'valor'` para correo, documento o identificador de UN caso. El identificador es source_user_id, no record_id ni loan_id. Ejecuta el archivo completo, no un SELECT aislado. Todos los candidatos se conservan: más de un resultado requiere revisión.
+3. Copia ID_PERSONA del resultado a **02_roles_persona.sql** y **03_matriculas_persona.sql**, y conserva como fecha de operación el 6 o 7 de octubre para este piloto. El ID_PERSONA no es el DNI. Exporta sus cuadrículas con los nombres indicados y un sufijo de caso.
+4. Ejecuta **04_catalogos.sql** una vez para obtener códigos de período, campus, modalidad y estados.
+5. Guarda los CSV originales en **`data/referencias/usuarios/`**. Incluye encabezados y conserva documentos/códigos como texto; no pases por una conversión numérica de Excel. Una cuadrícula vacía puede indicarse como “sin filas”, sin generar otro archivo.
+
+Primera entrega sugerida: tu caso con correo estudiantil antiguo, correo basado en DNI y cuenta laboral. Después agrega casos de intercambio TM, instituto i, docente, dos carreras y cambio de campus. Para cada caso necesitamos una nota de qué resultado esperas y en qué fecha; no se requieren contraseñas, direcciones, fechas de nacimiento ni datos ajenos al perfil de reportería.
+
+También necesitaremos el calendario académico: ID/código de período, fecha de inicio y fin, y el significado de estados de matrícula, ESTADO_ACTIVO, ES_DOCENTE y fechas de ingreso/retiro/término. Las claves ID_FECHA no se tratarán como fechas hasta confirmar su formato. FEC_ACTUALIZACION es actualización/carga, no vigencia académica.
+
+El correo exacto será el primer criterio, contrastado con los registros institucionales. El documento y los códigos estudiantiles respaldarán la identificación y los cambios de correo; no se reconstruyen cuentas docentes desde sus iniciales. Para una cuenta laboral con roles vigentes, la prioridad acordada es docente sobre administrativo. Una cuenta académica se resolverá con sus registros académicos, no solo por el formato de su correo.
+
+Elegiremos la matrícula más reciente aplicable a la fecha de operación, con estados y vigencias confirmados; no simplemente el mayor ID de período o la última carga. Si dos carreras siguen vigentes y no existe un criterio confirmado, se conservará la ambigüedad sin duplicar la operación ni elegir arbitrariamente un perfil. La integración automática todavía no está implementada: este piloto define esas reglas con datos reales.
 
 ## Histórico de LibCal y próximos pasos
 

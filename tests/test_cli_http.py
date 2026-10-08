@@ -133,6 +133,15 @@ class CLITests(unittest.TestCase):
             self.assertEqual(os.environ["TEST_ENV_KEY"], "value with # and $literal")
             self.assertEqual(os.environ["TEST_ENV_OVERRIDE"], "exported")
 
+    def test_sheet_column_configuration_rejects_unknown_or_unkeyed_exports(self):
+        config=self.config()
+        original=config.read_text()
+        for columns in ('["loan_type"]','["record_id", "unknown"]','["record_id", "record_id"]'):
+            config.write_text(original+'\n[reporting.sheet_columns]\nprestamos='+columns+'\n')
+            with self.assertRaises(ConfigError):load_config(config)
+        config.write_text(original+'\n[reporting]\nsheet_layout="full"\n[reporting.sheet_columns]\nprestamos=["record_id", "loan_type"]\n')
+        self.assertEqual(load_config(config).raw['reporting']['sheet_layout'],'full')
+
     def test_invalid_env_redacts_secret_and_applies_no_partial_values(self):
         path = self.directory / ".env"
         path.write_text('TEST_PARTIAL_SECRET=private-secret\nINVALID LINE private-secret\n')

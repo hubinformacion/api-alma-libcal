@@ -74,6 +74,36 @@ RESERVATION_FIELDS = {
     "source_user_first_name": "source_user_name", "source_user_last_name": "source_user_lastname",
 }
 REPORT_FIELDS = {"prestamos": LOAN_FIELDS, "renovaciones": RENEWAL_FIELDS, "reservas": RESERVATION_FIELDS}
+COMPACT_USER_FIELDS = (
+    'source_user_id', 'user_id', 'user_email', 'user_type', 'user_modality', 'user_campus_name',
+    'user_program_name', 'user_department_name', 'user_business_unit_name', 'user_match_status',
+)
+COMPACT_SHEET_FIELDS = {
+    'prestamos': ('record_id', 'user_full_name', *COMPACT_USER_FIELDS, 'item_barcode',
+                 'item_material_type_name', 'item_policy_name', 'item_title', 'loan_type',
+                 'loan_date', 'loan_time', 'loan_campus_name', 'loan_status'),
+    'renovaciones': ('record_id', 'loan_id', 'user_full_name', *COMPACT_USER_FIELDS, 'item_barcode',
+                    'item_material_type_name', 'item_policy_name', 'item_title', 'renewal_type',
+                    'renewal_date', 'renewal_quantity', 'report_campus_name', 'report_campus_source', 'loan_status'),
+    'reservas': ('record_id', 'user_first_name', 'user_last_name', *COMPACT_USER_FIELDS,
+                'booking_account_email', 'booking_resource_name', 'booking_category_name',
+                'booking_campus_name', 'booking_date', 'booking_start_at', 'booking_end_at',
+                'booking_duration_hours', 'booking_status', 'booking_attendance_status',
+                'booking_attendance_indicator', 'booking_phone', 'booking_participant_2_email',
+                'booking_participant_3_email', 'seat_name'),
+}
+
+
+def sheet_table(dataset, table, reporting=None):
+    """Project only the public columns; never modify stored/full report data."""
+    settings = reporting or {}
+    names = settings.get('sheet_columns', {}).get(dataset)
+    if names is None:
+        names = COMPACT_SHEET_FIELDS[dataset] if settings.get('sheet_layout', 'compact') == 'compact' else table[0]
+    if 'record_id' not in names or len(set(names)) != len(names) or any(name not in table[0] for name in names):
+        raise SourceError('Las columnas de Sheets deben existir, ser únicas y conservar record_id.')
+    indices = [table[0].index(name) for name in names]
+    return [[row[i] for i in indices] for row in table]
 MONTHS = ('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
           'Septiembre', 'Octubre', 'Noviembre', 'Diciembre')
 
