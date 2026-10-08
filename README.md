@@ -1,26 +1,24 @@
 # Alma + LibCal → reportes de biblioteca
 
-La configuración básica está preparada. Estamos verificando datos reales de ambos sistemas; los reportes se mantienen separados y la base universitaria completará después los atributos de usuarios.
+La extracción de la muestra está validada. El siguiente paso es publicar los datos guardados y comprobarlos en Google Sheets. Los reportes permanecen separados; la integración con usuarios de la universidad vendrá después.
 
-Empieza por [00 — Empieza aquí](docs/00-inicio.md). No necesitas conocer Python para ejecutar los comandos de las guías.
+Solo hay dos guías de trabajo:
 
-| Orden | Guía |
-| --- | --- |
-| 00 | [Etapa actual y estructura de carpetas](docs/00-inicio.md) |
-| 01 | [Extraer y comparar Alma](docs/01-alma.md) |
-| 02 | [Contar, guardar y comparar LibCal](docs/02-libcal.md) |
-| 03 | [Abrir SQLite en Antigravity o visualizar en Sheets](docs/03-ver-datos.md) |
+- [00 — Estado y pendientes, incluida la renovación sin campus](docs/00-inicio.md).
+- [01 — Publicar y validar Google Sheets](docs/01-google-sheets.md).
 
-Los registros guardados están en `data/pilot.sqlite3`. Los comandos de inspección y comprobación solo muestran resultados en la terminal; las extracciones con `--extract-only` sí guardan filas. La publicación a Google es un paso adicional.
+Los registros están en `data/pilot.sqlite3`; las copias CSV de la muestra, en `data/verificacion/`. SQLite tiene una tabla `records` que distingue conjuntos mediante `dataset` y guarda los atributos en `payload` (JSON). `runs` registra ejecuciones y `snapshots` su estado. Los CSV y Sheets tienen encabezados propios para cada reporte de Alma.
 
-Las cantidades de la muestra inicial están validadas y Alma tiene esquemas de salida propios para préstamos y renovaciones. Todavía faltan algunos campos finales de LibCal, la fuente histórica de LibCal y la automatización. La API LibCal utilizada no admite fechas pasadas.
+`.env` contiene claves de Alma y LibCal; `secrets/` guarda los JSON de autorización de Google; `config.toml` indica rutas, IDs y mapas. Estos archivos privados y `data/` están excluidos de Git. No necesitas modificarlos para publicar la muestra.
 
-## Para desarrollo
+`docs/1_1.yml` es la especificación de LibCal y `docs/database/` contiene la arquitectura institucional. Se conservan como referencias técnicas para las fases pendientes, no como guías de configuración.
 
-Código en `src/alma_libcal/`, conectores en `src/alma_libcal/connectors/`, pruebas en `tests/`. Las referencias técnicas están en `docs/1_1.yml` y `docs/database/`. Configuración local y datos están excluidos de Git.
+## Desarrollo
+
+Código en `src/alma_libcal/`, conectores en `src/alma_libcal/connectors/`, pruebas en `tests/`. Para ejecutarlas:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Las pruebas usan respuestas ficticias y bases temporales, sin credenciales ni consultas a sistemas reales.
+Las pruebas usan respuestas ficticias y bases temporales, sin consultar sistemas reales.
