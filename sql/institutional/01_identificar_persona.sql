@@ -8,6 +8,13 @@ DECLARE @identificador nvarchar(80) = NULL; -- Código U..., TM..., i... o ident
 SET @correo = NULLIF(LOWER(LTRIM(RTRIM(@correo))), N'');
 SET @documento = NULLIF(LTRIM(RTRIM(@documento)), N'');
 SET @identificador = NULLIF(LOWER(LTRIM(RTRIM(@identificador))), N'');
+IF @correo IS NOT NULL AND (@correo NOT LIKE N'%@%.%' OR LEN(@correo)-LEN(REPLACE(@correo,N'@',N''))<>1)
+    PRINT N'Advertencia: @correo debe ser el correo COMPLETO, copiado del sistema. No se completará el dominio automáticamente.';
+IF @identificador IS NOT NULL AND CHARINDEX(N'@',@identificador)>0
+BEGIN
+    SET @identificador=NULLIF(LEFT(@identificador,CHARINDEX(N'@',@identificador)-1),N'');
+    PRINT N'El identificador contenía un correo: se buscará únicamente su parte anterior a @ como código, sin inferir un rol.';
+END;
 IF @correo IS NULL AND @documento IS NULL AND @identificador IS NULL
 BEGIN
     SELECT N'Completa correo, documento o identificador y ejecuta todo el archivo.' AS instruction;

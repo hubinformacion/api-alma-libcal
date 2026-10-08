@@ -4,7 +4,7 @@
 
 Python 3.12 pilot: Alma loans/renewals and LibCal bookings go into SQLite and separate Sheets tabs. Validation is manual; scheduled jobs and institutional enrichment are pending.
 
-The institutional database will supply verified user attributes effective on the operation date. Match exact registered email first; use authoritative identifiers as fallback. For valid labor roles, docente precedes administrativo. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
+The institutional database will supply verified user attributes effective on the operation date. Match exact registered email first; use authoritative identifiers as fallback. For valid labor roles, docente precedes administrativo; JEFE DE PRACTICA counts as docente. Payroll ES_DOCENTE and FECHA_TERMINO are not sufficient alone to decide role or employment termination. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
 
 ## Structure and Configuration
 

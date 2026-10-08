@@ -124,3 +124,15 @@ Código en `src/alma_libcal/`, pruebas automatizadas en `tests/` y fixtures fict
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+### Segunda comprobación del piloto institucional
+
+Los primeros CSV llegaron sin encabezados: se reconstruyeron copias locales en `data/referencias/usuarios/normalizados/`, conservando los originales. Los TXT vacíos indican que la consulta no devolvió filas; no demuestran por sí solos que la persona no tenga el rol.
+
+Repite `01_identificar_persona.sql` por cada cuenta con correo completo. El campo identificador es un código sin dominio; si se introduce un correo allí, la consulta extrae su parte anterior a @ y avisa en Mensajes. Un dominio incompleto genera advertencia, nunca se completa por suposición.
+
+Ejecuta `05_fechas_y_periodos.sql` con el ID_PERSONA del caso para resolver ID_FECHA usando `dbo.DIM_TIEMPO.DES_TIEMPO`, comprobar períodos y buscar un calendario real. La consulta incluye una muestra de horarios docentes, con sus fechas de texto originales, para validar el formato. Exporta las cuadrículas con los nombres indicados en sus comentarios.
+
+Para reportería, JEFE DE PRACTICA se considera Docente y tiene prioridad sobre Administrativo cuando la asignación corresponde a la fecha de operación. ES_DOCENTE de nómina no es prueba única de docencia. FECHA_TERMINO tampoco se trata como baja laboral sin validar su significado y las renovaciones/contratos indefinidos; debe contrastarse con FECHA_RETIRO y la fuente laboral.
+
+Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.
