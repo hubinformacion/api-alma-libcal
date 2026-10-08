@@ -71,7 +71,7 @@ token_path = "/1.1/oauth/token"
 bookings_path = "/1.1/space/bookings"
 client_id_env = "LIBCAL_CLIENT_ID" # Nombre de variable en .env; el valor secreto no va aquí.
 client_secret_env = "LIBCAL_CLIENT_SECRET" # Nombre de variable en .env; el valor secreto no va aquí.
-# Based on docs/1_1.yml. Validate actual responses and category IDs.
+# Configurado según LibCal API 1.1; validar respuestas y cambios de esquema.
 # /space/bookings ignores past dates; historical backfill needs another source.
 response_path = "" # Empty for root arrays; e.g. "bookings" for wrapped responses.
 pagination = "page"
