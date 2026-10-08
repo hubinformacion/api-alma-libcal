@@ -85,7 +85,7 @@ Préstamos incorporan `loan_month`, `loan_month_number` y `loan_hour`; renovacio
 La salida de reservas contiene los atributos operativos del reporte: correo, recurso, categoría, campus, fecha, inicio/fin, mes, número de mes, hora, estado, confirmación y correos de integrantes. Incluye IDs y puestos para seguimiento.
 
 - `booking_duration_hours`: horas decimales entre inicio y fin, incluso si cruza medianoche. `booking_duration_minutes` conserva también la medida en minutos. Es duración reservada, no uso efectivo medido por check-in/check-out.
-- `booking_confirmation`: Confirmado para Confirmed; Cancelado para los estados Cancelled/Canceled. Otros estados quedan sin clasificar en esta columna y se conservan en `booking_status`.
+- `booking_confirmation`: Confirmado para Confirmed; Cancelado para los estados Cancelled/Canceled. Otros estados quedan sin clasificar en esta columna y se conservan en `booking_status`. **Corrección pendiente:** el usuario aclaró que esta columna representa asistencia marcada por los agentes (Sí/No/-), independiente del estado de reserva. Se propone booking_attendance_status y consultar el estado de check-in. La regla actual no reproduce esta columna del reporte manual y debe corregirse antes de usarla para medir asistencia.
 - `source_user_id`: parte anterior a `@` del correo cuando no hay ID explícito. Conserva ceros iniciales; es una clave candidata, no un DNI validado con la institución.
 - `booking_account_email`: se llena solo si `account` contiene un correo. El valor original se conserva en `booking_account`; no se inventa un dominio para un login.
 - `user_name`, `user_lastname`, `user_type`, `user_modality`, `user_campus`, `user_program`, `user_department` y `user_business_unit` quedan vacíos hasta cruzar con la base universitaria. Los nombres manuales de LibCal se conservan aparte en `source_user_name/lastname`; `user_email` conserva por ahora el correo original para el cruce.
@@ -124,3 +124,15 @@ Código en `src/alma_libcal/`; pruebas en `tests/`. Para comprobar el programa c
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+## Estandarización en revisión
+
+Los archivos manuales recibidos contienen 2.612 filas de Alma y 2.760 de LibCal. En `data/verificacion/propuesta-encabezados.csv` está el nombre propuesto para cada columna y su regla; `propuesta-tipos-material.csv` contiene equivalencias candidatas obtenidas por barcode. Son propuestas locales, todavía no aplicadas a los encabezados publicados.
+
+La convención propuesta es inglés en snake_case: `_code` para códigos, `_name` para nombres de catálogos, `_date` para fecha, `_time` para hora, `_at` para fecha/hora con zona y `_duration_hours` para horas decimales. Los atributos institucionales usan `user_`; las claves originales de los sistemas usan `source_user_`.
+
+Los pares de preguntas/respuestas de LibCal se separarán por significado: `booking_phone`, `booking_participant_2_email`, `booking_participant_3_email` y `booking_terms_accepted`. El texto de las preguntas no se exportará. El CSV contiene preguntas distintas en la misma posición; la implementación debe usar IDs de pregunta.
+
+Se recomienda cruzar usuarios dentro del programa y publicar las columnas enriquecidas, manteniendo las operaciones originales en SQLite. Los registros sin coincidencia no se eliminarán y los usos internos sin usuario se identificarán como no aplicables al cruce. Falta decidir si los atributos académicos reflejarán la fecha de la operación o la situación actual. Los reportes de referencia corresponden a enero de 2026; las muestras API disponibles son de octubre, así que sus conteos no son directamente comparables.
+
+Las equivalencias de categorías se gestionarán mediante catálogos de código y nombre aprobados, separados de los cálculos de fechas/duración. El significado de booking_confirmation ya se aclaró: asistencia, no confirmación administrativa. Quedan las reglas de clasificación de préstamos/renovaciones y el catálogo completo de materiales. El CSV manual contiene 170 duraciones con 0,01 horas adicionales respecto de inicio/fin; la propuesta mantiene el cálculo exacto y documenta esa diferencia.
