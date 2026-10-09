@@ -18,6 +18,8 @@ SELECT e.ID_PERSONA AS person_id, e.ID_ESTUDIANTE AS student_id, e.COD_ESTUDIANT
        m.ID_FACULTAD_EAP AS faculty_program_id, fe.ID_EAP AS program_id, a.DES_EAP AS program_name,
        fe.ID_FACULTAD AS faculty_id, f.DES_FACULTAD AS faculty_name,
        m.ID_NIVEL AS academic_level_id, m.ID_ESTADO AS source_status_id,
+       m.ID_ESTADO_TIPO_ESTUDIANTE AS source_student_type_id,
+       st.DES_TIPO_ESTUDIANTE AS source_student_type_name,
        m.ID_ESTADO_MATRICULA AS enrollment_status_id, m.ID_ESTADO_BANNER AS banner_status_id,
        m.ID_ESTADO_INICIAL AS initial_status_id, m.ID_ESTADO_FINAL AS final_status_id,
        m.CREDITOS_MATRICULADOS AS enrolled_credits, m.FEC_ACTUALIZACION AS source_loaded_at,
@@ -30,6 +32,7 @@ LEFT JOIN dbo.DIM_MODALIDAD AS mo ON mo.ID_MODALIDAD=m.ID_MODALIDAD
 LEFT JOIN dbo.DIM_FACULTAD_EAP AS fe ON fe.ID_FACULTAD_EAP=m.ID_FACULTAD_EAP
 LEFT JOIN dbo.DIM_EAP AS a ON a.ID_EAP=fe.ID_EAP
 LEFT JOIN dbo.DIM_FACULTAD AS f ON f.ID_FACULTAD=fe.ID_FACULTAD
+LEFT JOIN dbo.DIM_ESTADO_TIPO_ESTUDIANTE AS st ON st.ID_ESTADO_TIPO_ESTUDIANTE=m.ID_ESTADO_TIPO_ESTUDIANTE
 WHERE e.ID_PERSONA=@persona_id
 ORDER BY m.ID_PERIODO,m.ID_FECHA_MATRICULA,m.ID_ESTUDIANTE,m.ID_FACULTAD_EAP;
 

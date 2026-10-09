@@ -137,4 +137,6 @@ Si los horarios docentes no devuelven filas o hay referencias tanto en EDC como 
 
 Para reportería, JEFE DE PRACTICA se considera Docente y tiene prioridad sobre Administrativo cuando la asignación corresponde a la fecha de operación. ES_DOCENTE de nómina no es prueba única de docencia. FECHA_TERMINO tampoco se trata como baja laboral sin validar su significado y las renovaciones/contratos indefinidos; debe contrastarse con FECHA_RETIRO y la fuente laboral.
 
+El piloto prioriza las cuentas institucionales actuales; las equivalencias de correos antiguos se resolverán después. `04_catalogos.sql` incluye tipos de estudiante y estados del funnel de Continua. Estos últimos no se interpretan automáticamente como estados de egreso. `03_matriculas_persona.sql` conserva también el tipo de estudiante de la fuente junto al estado académico; ninguna categoría se deduce solo del correo.
+
 Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.

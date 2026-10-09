@@ -6,6 +6,8 @@ Python 3.12 pilot: Alma loans/renewals and LibCal bookings go into SQLite and se
 
 The institutional database will supply verified user attributes effective on the operation date. Match exact registered email first; use authoritative identifiers as fallback. For valid labor roles, docente precedes administrativo; JEFE DE PRACTICA counts as docente. Payroll ES_DOCENTE and FECHA_TERMINO are not sufficient alone to decide role or employment termination. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
 
+Prioritize current institutional accounts in the pilot; legacy student email aliases are a later exception and must not block development. Academic graduation statuses and commercial funnel statuses are distinct. Preserve original labels until reporting equivalences are agreed.
+
 ## Structure and Configuration
 
 Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` defines report headers and transformations; `storage.py` manages current records, versions and execution status. Tests use synthetic fixtures. Read-only institutional discovery queries are in `sql/institutional/` for manual SSMS execution.
