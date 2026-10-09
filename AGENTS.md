@@ -12,7 +12,7 @@ Prioritize current institutional accounts in the pilot; legacy student email ali
 
 Validate identity discovery with email-only inputs: a known document is a test reference, not proof that the email resolved. Test multiple accounts of one person without assuming one account per document. Missing institutional email/code links require an authoritative account mapping; never fabricate employee usernames or institute aliases.
 
-The first institute sample supports testing i + ID_ALUMNO as an email local part. This remains a candidate method pending additional samples; do not treat one successful case as general coverage.
+Two institute pilot cases (historical and current enrollment) match i + ID_ALUMNO to the expected person. This is pilot evidence, not general coverage. Identity matching alone does not prove current enrollment or graduation; validate operation dates and academic evidence separately.
 
 ## Structure and Configuration
 
