@@ -70,6 +70,17 @@ END;
       ON q.local_part=LOWER(LTRIM(RTRIM(CONVERT(nvarchar(80),e.COD_ESTUDIANTE))))
     LEFT JOIN dbo.DIM_PERSONA AS p ON p.ID_PERSONA=e.ID_PERSONA
     WHERE q.email_domain IN (N'continental.edu.pe',N'icontinental.edu.pe')
+    UNION ALL
+    -- Hipótesis contrastada en la primera muestra: i + ID_ALUMNO, sin dominio.
+    -- Requiere otras muestras y validación de la convención; no inferir egreso ni vigencia.
+    SELECT q.account_context,q.source_email,N'email_institute_code_candidate',N'IC.FCT_MATRICULA',
+           p.ID_PERSONA,CONVERT(nvarchar(64),p.COD_DOCUMENTO)
+    FROM @cuentas AS q JOIN IC.FCT_MATRICULA AS m
+      ON SUBSTRING(q.local_part,2,255)=CONVERT(nvarchar(80),m.ID_ALUMNO)
+    LEFT JOIN dbo.DIM_PERSONA AS p ON p.ID_PERSONA=m.ID_PERSONA
+    WHERE q.email_domain IN (N'continental.edu.pe',N'icontinental.edu.pe')
+      AND LEFT(q.local_part,1)=N'i' AND LEN(q.local_part)>1
+      AND SUBSTRING(q.local_part,2,255) NOT LIKE N'%[^0-9]%'
 )
 SELECT DISTINCT q.account_context,q.source_email,COALESCE(h.match_method,N'unmatched') AS match_method,
        h.source_object,h.person_id,h.document_number,
@@ -89,6 +100,24 @@ LEFT JOIN IC.DIM_PERIODOACAD AS pe ON pe.ID_PERIODO=m.ID_PERIODOACAD
 LEFT JOIN IC.DIM_PROGRAMAESTUDIOS AS pr ON pr.ID_PROGRAMA=m.ID_PROGRAMAESTUDIOS
 WHERE LTRIM(RTRIM(p.COD_DOCUMENTO))=@documento_referencia
 ORDER BY p.ID_PERSONA,m.ID_ALUMNO,m.ID_PERIODOACAD,pe.COD_PERIODO,m.ID_PROGRAMAESTUDIOS,pr.DESC_PROGRAMA,m.ID_ESTADOGENERAL;
+
+-- 07_egreso_instituto_CASO.csv. Evidencia académica separada de matrícula histórica.
+-- Los estados de certificado necesitan interpretación institucional; aptitud no equivale a egreso certificado.
+SELECT DISTINCT p.ID_PERSONA AS person_id,g.ID_ALUMNO AS source_student_id,
+       g.ID_PERIODOACAD AS period_id,pe.COD_PERIODO AS source_period_code,
+       g.ID_PROGRAMAESTUDIOS AS program_id,pr.DESC_PROGRAMA AS program_name,
+       g.ESTADOCERTIFICADOEGRESADO AS source_graduation_certificate_status,
+       g.FECHACERTIFICADOEGRESADO AS source_graduation_certificate_date,
+       g.ESTADOCERTIFICADOBACHILLER AS source_bachelor_certificate_status,
+       g.ESTADOCERTIFICADOTITULO AS source_title_certificate_status,
+       g.PERIODOMIN AS source_minimum_period
+FROM dbo.DIM_PERSONA AS p JOIN IC.FCT_EGRESADOSAPTOS AS g ON g.ID_PERSONA=p.ID_PERSONA
+LEFT JOIN IC.DIM_PERIODOACAD AS pe ON pe.ID_PERIODO=g.ID_PERIODOACAD
+LEFT JOIN IC.DIM_PROGRAMAESTUDIOS AS pr ON pr.ID_PROGRAMA=g.ID_PROGRAMAESTUDIOS
+WHERE LTRIM(RTRIM(p.COD_DOCUMENTO))=@documento_referencia
+ORDER BY p.ID_PERSONA,g.ID_ALUMNO,g.ID_PERIODOACAD,pe.COD_PERIODO,g.ID_PROGRAMAESTUDIOS,pr.DESC_PROGRAMA,
+         g.ESTADOCERTIFICADOEGRESADO,g.FECHACERTIFICADOEGRESADO,g.ESTADOCERTIFICADOBACHILLER,
+         g.ESTADOCERTIFICADOTITULO,g.PERIODOMIN;
 
 -- 07_fuentes_cuentas.csv. Metadatos de tablas/vistas accesibles con correo o login y claves de persona.
 SELECT s.name AS schema_name,o.name AS object_name,c.name AS column_name,ty.name AS data_type

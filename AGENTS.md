@@ -6,9 +6,13 @@ Python 3.12 pilot: Alma loans/renewals and LibCal bookings go into SQLite and se
 
 The institutional database will supply verified user attributes effective on the operation date. Match exact registered email first; use authoritative identifiers as fallback. For valid labor roles, docente precedes administrativo; JEFE DE PRACTICA counts as docente. Payroll ES_DOCENTE and FECHA_TERMINO are not sufficient alone to decide role or employment termination. Keep source identifiers distinct from verified identity. Never invent historical academic profiles or discard unmatched operations.
 
-Prioritize current institutional accounts in the pilot; legacy student email aliases are a later exception and must not block development. Academic graduation statuses and commercial funnel statuses are distinct. Preserve original labels until reporting equivalences are agreed.
+The account used determines profile scope: institute accounts use IC only; university academic accounts use UC/PSG/EDC; labor accounts use employment/teaching. Select the applicable recent profile within that scope, never across scopes because the person/document matches. Report user_type is Estudiante (enrolled and studying in the applicable current period), Egresado (includes Bachiller/Titulado), Docente or Administrativo. Missing evidence remains unresolved, not a guessed category.
+
+Prioritize current institutional accounts in the pilot; legacy student email aliases are a later exception and must not block development. Preserve original graduation statuses independently of user_type; commercial funnel statuses do not prove academic graduation.
 
 Validate identity discovery with email-only inputs: a known document is a test reference, not proof that the email resolved. Test multiple accounts of one person without assuming one account per document. Missing institutional email/code links require an authoritative account mapping; never fabricate employee usernames or institute aliases.
+
+The first institute sample supports testing i + ID_ALUMNO as an email local part. This remains a candidate method pending additional samples; do not treat one successful case as general coverage.
 
 ## Structure and Configuration
 
