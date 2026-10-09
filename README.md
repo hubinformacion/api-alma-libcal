@@ -133,6 +133,8 @@ Repite `01_identificar_persona.sql` por cada cuenta con correo completo. El camp
 
 Ejecuta `05_fechas_y_periodos.sql` con el ID_PERSONA del caso para resolver ID_FECHA usando `dbo.DIM_TIEMPO.DES_TIEMPO`, comprobar períodos y buscar un calendario real. La consulta incluye una muestra de horarios docentes, con sus fechas de texto originales, para validar el formato. Exporta las cuadrículas con los nombres indicados en sus comentarios.
 
+Si los horarios docentes no devuelven filas o hay referencias tanto en EDC como en PSG, ejecuta `06_completar_perfiles.sql` con el mismo ID_PERSONA. Sus tres resultados muestran el perfil de Continua, los nombres del programa de Posgrado y semanas de docencia de otra fuente. Una fecha de emisión no se interpreta como egreso; una referencia de programa no demuestra matrícula vigente. Guarda las cuadrículas con encabezados en la carpeta local de referencias, siguiendo los nombres de sus comentarios.
+
 Para reportería, JEFE DE PRACTICA se considera Docente y tiene prioridad sobre Administrativo cuando la asignación corresponde a la fecha de operación. ES_DOCENTE de nómina no es prueba única de docencia. FECHA_TERMINO tampoco se trata como baja laboral sin validar su significado y las renovaciones/contratos indefinidos; debe contrastarse con FECHA_RETIRO y la fuente laboral.
 
 Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.
