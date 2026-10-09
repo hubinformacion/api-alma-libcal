@@ -8,6 +8,8 @@ The institutional database will supply verified user attributes effective on the
 
 Prioritize current institutional accounts in the pilot; legacy student email aliases are a later exception and must not block development. Academic graduation statuses and commercial funnel statuses are distinct. Preserve original labels until reporting equivalences are agreed.
 
+Validate identity discovery with email-only inputs: a known document is a test reference, not proof that the email resolved. Test multiple accounts of one person without assuming one account per document. Missing institutional email/code links require an authoritative account mapping; never fabricate employee usernames or institute aliases.
+
 ## Structure and Configuration
 
 Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` defines report headers and transformations; `storage.py` manages current records, versions and execution status. Tests use synthetic fixtures. Read-only institutional discovery queries are in `sql/institutional/` for manual SSMS execution.
