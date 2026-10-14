@@ -147,4 +147,16 @@ Para comprobar que el cruce funciona cuando Alma/LibCal aportan solo correo, usa
 
 La consulta 07 incluye como candidato de instituto el código numérico posterior a la i inicial, comparado como texto con ID_ALUMNO. Dos casos del piloto, uno histórico y otro con matrícula actual, coinciden con la persona esperada; esto no demuestra cobertura general. Los dominios admitidos son continental.edu.pe e icontinental.edu.pe. No se eliminan ceros iniciales ni se interpreta la existencia de matrículas históricas como vigencia o egreso. `IC.FCT_EGRESADOSAPTOS` aporta estados y fechas de certificados: los estados y la aptitud deben contrastarse antes de inferir egreso.
 
+### Comprobar los correos reales por lote
+
+Prepara un SQL privado desde el histórico local, sin modificar SQLite:
+
+```bash
+.venv/bin/python scripts/prepare_institutional_check.py
+```
+
+Abre `data/referencias/usuarios/lote/08_validar_lote_preparado.sql` en SSMS del equipo institucional. Selecciona la misma base de las pruebas y ejecuta todo el archivo una sola vez. Guarda su única cuadrícula con encabezados como `data/referencias/usuarios/lote/08_validacion_lote.csv` en este proyecto. No ejecutes la plantilla pública `sql/institutional/08_validar_lote.sql`.
+
+El lote agrupa correo/fecha y conserva cuántos registros representa; omite usos internos y cuenta por separado los registros sin correo. No requiere completar DNIs. Reutiliza los métodos de la consulta 07. `matched_identity` indica un único candidato; `ambiguous`, varias personas; `unmatched`, ninguna; `source_without_person`, cuenta encontrada sin vínculo de persona; `invalid_email`, dirección incompleta. `account_scope` distingue institute, university y labor, o queda pendiente/ambiguo. Esta prueba valida identificación y ámbito, no matrícula/rol ni titularidad general. La asignación de atributos y publicación del cruce vendrán después de revisar sus resultados. El SQL preparado contiene correos reales y permanece dentro de `data/`, fuera de Git.
+
 Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.
