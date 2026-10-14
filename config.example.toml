@@ -301,4 +301,3 @@ include_date_parts = true # false: omitir mes/número de mes/hora; conservar fec
 "out" = "Sí"
 "-" = "-"
 "no" = "No"
-
