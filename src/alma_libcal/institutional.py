@@ -82,6 +82,82 @@ def attributes(rows):
         ('user_program', 'program_name'), ('user_department', 'faculty_name'))}
 
 
+UC_GRADUATION_STATUSES = {'EGRESADO', 'BACHILLER', 'TITULADO'}
+
+
+def dated_values(rows, keys, operation):
+    return [value for row in rows for key in keys
+            if (value := day(row.get(key))) is not None and value <= operation]
+
+
+def same_career(left, right):
+    # Missing keys never justify copying attributes between careers.
+    return (text(left.get('program_id')) and text(left.get('program_id')) == text(right.get('program_id'))
+            and (not text(left.get('student_id')) or not text(right.get('student_id'))
+                 or text(left.get('student_id')) == text(right.get('student_id'))))
+
+
+def university_graduation(evidence, operation):
+    proofs = []
+    for row in evidence['uc_student']:
+        valid = [(key, day(row.get(key))) for key in ('graduation_date', 'bachelor_date', 'title_date')
+                 if day(row.get(key)) and day(row.get(key)) <= operation]
+        if valid:
+            key, status_date = max(valid, key=lambda entry: entry[1])
+            label = {'graduation_date': 'EGRESADO', 'bachelor_date': 'BACHILLER', 'title_date': 'TITULADO'}[key]
+            proofs.append((row, 'uc_student', label, status_date))
+    for row in evidence['uc_enrollment']:
+        status_date = day(row.get('source_activity_date'))
+        label = normalized(row.get('source_status_name'))
+        if (label in UC_GRADUATION_STATUSES and status_date and status_date <= operation
+                and normalized(row.get('enrollment_status_name')) == label):
+            proofs.append((row, 'uc_enrollment', label, status_date))
+    ranked = []
+    for row, source, label, status_date in proofs:
+        history = [r for r in evidence['uc_enrollment'] if same_career(row, r)]
+        dimensions = [r for r in evidence['uc_student'] if same_career(row, r)]
+        dates = dated_values(history + dimensions + [row], ('enrollment_date', 'study_start'), operation)
+        # The earliest formal completion evidence is a fallback, never latest titling.
+        completion = dated_values([row], ('study_end', 'graduation_date'), operation)
+        recency = max(dates) if dates else min(completion) if completion else None
+        if recency:
+            ranked.append((recency, row, source, label, status_date))
+    if not ranked:
+        return [], None, []
+    latest = max(r[0] for r in ranked)
+    chosen = [r for r in ranked if r[0] == latest]
+    careers = defaultdict(list)
+    for entry in chosen:
+        row = entry[1]
+        careers[(text(row.get('student_id')), text(row.get('program_id')))].append(row)
+    rows = []
+    # Resolve metadata within each tied career; degree update dates cannot break a study tie.
+    for proofs in careers.values():
+        history = [r for r in evidence['uc_enrollment'] if any(same_career(r, p) for p in proofs)
+                   and day(r.get('source_activity_date')) and day(r['source_activity_date']) <= operation]
+        if history:
+            last = max(day(r['source_activity_date']) for r in history)
+            rows.extend(r for r in history if day(r['source_activity_date']) == last)
+        else:
+            rows.extend(proofs)
+    trace = sorted({(r[2], r[3], r[4].isoformat()) for r in chosen})
+    return rows, latest, trace
+
+
+def newer_university_study(evidence, reference, operation):
+    for source in ('edc_enrollment', 'edc_profile', 'psg_enrollment'):
+        for row in evidence[source]:
+            keys = ('enrollment_date', 'source_start_date', 'study_start')
+            dates = dated_values([row], keys, operation)
+            populated = [day(row.get(k)) for k in keys if text(row.get(k))]
+            # Explicit future-only study cannot supersede the historical profile.
+            if populated and all(d and d > operation for d in populated):
+                continue
+            if not dates or max(dates) > reference:
+                return True
+    return False
+
+
 def active_interval(row, start, end, operation):
     beginning = day(row.get(start))
     ending = day(row.get(end))
@@ -100,6 +176,7 @@ def resolve_profile(context, evidence, settings):
     profile.update(verified_user_id=identifier, verified_user_email=context['source_email'],
                    user_full_name=full_name)
     reasons = []
+    academic_trace = []
     period = str(settings.get('university_period_by_date', {}).get(operation.isoformat(), ''))
     selected = []
     if scope == 'university':
@@ -112,9 +189,11 @@ def resolve_profile(context, evidence, settings):
             if (period and text(row.get('period_name')) == period and effective and effective <= operation
                     and (not enrolled or enrolled <= operation)):
                 candidates[(text(row.get('student_id')), text(row.get('program_id')))].append(row)
+        current_states = []
         for rows in candidates.values():
             latest = max(day(r['source_activity_date']) for r in rows)
             current = [r for r in rows if day(r['source_activity_date']) == latest]
+            current_states.extend(current)
             def enrolled(row):
                 try:
                     credits = float(row.get('enrolled_credits') or 0)
@@ -129,25 +208,23 @@ def resolve_profile(context, evidence, settings):
             profile.update(attributes(selected), user_type='Estudiante')
             # A newer study in the same account family may supersede this career.
             latest_uc = max(day(r['enrollment_date']) for r in selected)
-            newer = [r for source in ('edc_enrollment', 'edc_profile', 'psg_enrollment')
-                     for r in evidence[source]
-                     if any(latest_uc < d <= operation for d in
-                            [day(r.get('enrollment_date')), day(r.get('source_start_date'))] if d)]
+            newer = newer_university_study(evidence, latest_uc, operation)
             if newer:
                 profile.update({k: '' for k in attributes([])}, user_type='')
                 reasons.append('newer_academic_study_requires_validation')
         else:
-            # Formal graduation evidence is independent of commercial funnel labels.
-            graduates = [r for r in evidence['uc_student'] if any(
-                d and d <= operation for d in [day(r.get(k)) for k in
-                                               ('graduation_date', 'bachelor_date', 'title_date')])]
-            if graduates and not candidates and not any(evidence[s] for s in
-                    ('psg_enrollment', 'edc_enrollment', 'edc_profile')):
-                latest = max(day(r.get('graduation_date')) or day(r.get('study_end')) or date.min
-                             for r in graduates)
-                profile.update(attributes([r for r in graduates if
-                    (day(r.get('graduation_date')) or day(r.get('study_end')) or date.min) == latest]),
-                    user_type='Egresado')
+            graduates, recent_study, trace = university_graduation(evidence, operation)
+            current_conflict = any(normalized(r.get('source_status_name')) not in UC_GRADUATION_STATUSES
+                                   for r in current_states)
+            newer_uc = graduates and any(
+                day(r.get('enrollment_date')) and recent_study < day(r['enrollment_date']) <= operation
+                and not any(same_career(r, g) for g in graduates) for r in evidence['uc_enrollment'])
+            if graduates and not current_conflict and not newer_uc:
+                if newer_university_study(evidence, recent_study, operation):
+                    reasons.append('newer_academic_study_requires_validation')
+                else:
+                    profile.update(attributes(graduates), user_type='Egresado')
+                    academic_trace = trace
             else:
                 reasons.append('academic_status_not_proven' if period else 'academic_period_not_confirmed')
     elif scope == 'institute':
@@ -157,7 +234,37 @@ def resolve_profile(context, evidence, settings):
         if selected:
             profile.update(attributes(selected), user_type='Estudiante')
         else:
-            reasons.append('institute_status_not_proven')
+            graduates = [r for r in evidence['ic_graduation']
+                         if text(r.get('source_graduation_certificate_status')) == '1'
+                         and day(r.get('source_graduation_certificate_date'))
+                         and day(r['source_graduation_certificate_date']) <= operation]
+            ranked = []
+            for graduate in graduates:
+                history = [r for r in evidence['ic_enrollment'] if same_career(r, graduate)]
+                dates = dated_values(history, ('section_start',), operation)
+                # Certificate issuance proves completion, not when the person studied.
+                recent = max(dates) if dates else date.min
+                ranked.append((recent, graduate, history))
+            if ranked:
+                recent = max(r[0] for r in ranked)
+                chosen = [r for r in ranked if r[0] == recent]
+                programs = {text(r[1].get('program_id')) for r in ranked}
+                programs.update(text(r.get('program_id')) for r in evidence['ic_enrollment']
+                                if day(r.get('section_start')) and day(r['section_start']) <= operation)
+                uncertain_order = len(programs) > 1 and any(r[0] == date.min for r in ranked)
+                newer = any(day(r.get('section_start')) and recent < day(r['section_start']) <= operation
+                            and not any(same_career(r, g[1]) for g in chosen)
+                            for r in evidence['ic_enrollment'])
+                if newer or uncertain_order:
+                    reasons.append('institute_newer_study_requires_validation')
+                else:
+                    history = [r for _, _, rows in chosen for r in rows
+                               if day(r.get('section_start')) == recent]
+                    profile.update(attributes(history or [r[1] for r in chosen]), user_type='Egresado')
+                    academic_trace = [('ic_graduation', '1', day(r[1]['source_graduation_certificate_date']).isoformat())
+                                      for r in chosen]
+            else:
+                reasons.append('institute_status_not_proven')
     elif scope == 'labor':
         jobs = [r for r in evidence['employment']
                 if text(r.get('work_email')).lower() == context['source_email']
@@ -214,8 +321,12 @@ def resolve_profile(context, evidence, settings):
                                'user_business_unit') if not profile[f]]
         reasons.extend('missing_or_ambiguous_' + f for f in missing)
         profile['user_match_status'] = 'partial_profile' if missing else 'matched_profile'
-    return {'fields': profile, 'reasons': sorted(set(reasons)), 'account_scope': scope,
-            'person_id': context['person_id']}
+    result = {'fields': profile, 'reasons': sorted(set(reasons)), 'account_scope': scope,
+              'person_id': context['person_id']}
+    if academic_trace:
+        result['academic_evidence'] = [dict(source=s, original_status=label, status_date=d)
+                                       for s, label, d in sorted(set(academic_trace))]
+    return result
 
 
 def prepare_import(store, evidence_path, review_path, settings, services):

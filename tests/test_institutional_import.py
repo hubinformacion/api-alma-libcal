@@ -132,6 +132,102 @@ class ProfileResolutionTests(unittest.TestCase):
         self.evidence['uc_student'][0]['graduation_date'] = '2027-01-01'
         self.assertEqual(self.resolve()['fields']['user_type'], '')
 
+    def graduate_university(self):
+        self.evidence['uc_student'] = [dict(student_id=5, program_id=1,
+            study_start='2020-03-01', study_end='2020-12-01', graduation_date='2021-01-01')]
+        self.evidence['uc_enrollment'] = [dict(self.enrollment, period_name='202010',
+            enrollment_date='2020-03-01', source_activity_date='2020-03-01'),
+            dict(self.enrollment, enrollment_date=None, source_activity_date='2026-09-01',
+                 source_status_name='BACHILLER', enrollment_status_name='BACHILLER', enrolled_credits=None)]
+
+    def test_current_period_degree_update_is_not_a_new_enrollment(self):
+        self.graduate_university()
+        self.evidence['edc_enrollment'] = [dict(enrollment_date='2019-01-01')]
+        self.evidence['psg_enrollment'] = [dict(enrollment_date='2018-01-01', study_end=None)]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_modality'], 'Presencial')
+        self.assertTrue(any(r['original_status'] == 'BACHILLER' for r in result['academic_evidence']))
+
+    def test_late_titling_does_not_outrank_newer_continua(self):
+        self.graduate_university()
+        self.evidence['uc_student'][0]['title_date'] = '2026-09-01'
+        self.evidence['edc_enrollment'] = [dict(enrollment_date='2025-01-01', source_active_status=1)]
+        self.evidence['edc_profile'] = [dict(source_start_date='2025-01-01',
+            source_emission_date='2025-12-01', source_funnel_status='MATRICULADO')]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_match_status'], 'pending_review')
+        self.assertIn('newer_academic_study_requires_validation', result['reasons'])
+
+    def test_newer_undated_psg_requires_review_and_future_only_study_does_not(self):
+        self.graduate_university()
+        self.evidence['psg_enrollment'] = [dict(source_active_status=1, source_status_id=2)]
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        self.evidence['psg_enrollment'][0]['study_start'] = '2027-01-01'
+        self.assertEqual(self.resolve()['fields']['user_type'], 'Egresado')
+
+    def test_other_career_after_graduation_does_not_inherit_egresado(self):
+        self.graduate_university()
+        self.evidence['uc_enrollment'].append(dict(self.enrollment, period_name='202510',
+            student_id=6, program_id=2, enrollment_date='2025-03-01', source_activity_date='2025-03-01'))
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
+
+    def test_equal_study_dates_do_not_use_titling_dates_to_choose_a_career(self):
+        self.graduate_university()
+        self.evidence['uc_student'].append(dict(self.evidence['uc_student'][0],
+            student_id=6, program_id=2, title_date='2026-01-01'))
+        history = [dict(row, student_id=6, program_id=2, program_name='Carrera B')
+                   for row in self.evidence['uc_enrollment']]
+        history[-1]['source_activity_date'] = '2026-09-15'
+        self.evidence['uc_enrollment'].extend(history)
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], '')
+        self.assertEqual(result['fields']['user_campus'], 'Campus A')
+
+    def institute_graduate(self):
+        self.context['account_scope'] = 'institute'
+        self.evidence['ic_enrollment'] = [dict(student_id=3, program_id=1, program_name='Programa IC',
+            modality_name='REGULAR', source_status_id=4,
+            section_start='2021-03-01', section_end='2021-08-01')]
+        self.evidence['ic_graduation'] = [dict(program_id=1, program_name='Programa IC',
+            source_graduation_certificate_status=1, source_graduation_certificate_date='2021-11-05')]
+
+    def test_dated_issued_ic_certificate_proves_graduation_and_retains_missing_campus(self):
+        self.institute_graduate()
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], 'Programa IC')
+        self.assertEqual(result['fields']['user_campus'], '')
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['academic_evidence'][0]['original_status'], '1')
+
+    def test_late_ic_certificate_is_not_evidence_of_a_more_recent_study(self):
+        self.institute_graduate()
+        self.evidence['ic_graduation'][0]['source_graduation_certificate_date'] = '2026-09-01'
+        self.evidence['ic_enrollment'].append(dict(program_id=2, student_id=4,
+            source_status_id=4, section_start='2025-01-01', section_end='2025-06-01'))
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        self.evidence['ic_enrollment'] = self.evidence['ic_enrollment'][1:]
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
+
+    def test_ic_certificate_requires_confirmed_status_and_historical_date(self):
+        self.institute_graduate()
+        certificate = self.evidence['ic_graduation'][0]
+        for status, issued in [(0, '2021-11-05'), (1, '2027-11-05'), (1, ''), (1, 'bad-date')]:
+            certificate.update(source_graduation_certificate_status=status,
+                               source_graduation_certificate_date=issued)
+            self.assertEqual(self.resolve()['fields']['user_type'], '')
+
+    def test_current_ic_enrollment_precedes_old_graduation(self):
+        self.institute_graduate()
+        self.evidence['ic_enrollment'].append(dict(program_id=2, student_id=4, program_name='Nuevo IC',
+            source_status_id=4, section_start='2026-09-01', section_end='2027-01-01'))
+        self.assertEqual(self.resolve()['fields']['user_type'], 'Estudiante')
+        self.assertEqual(self.resolve()['fields']['user_program'], 'Nuevo IC')
+        self.evidence['ic_enrollment'][-1]['section_end'] = '2026-10-01'
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
+
     def test_tm_identifier_remains_alphanumeric(self):
         self.evidence['identity'][0]['source_identifier'] = 'TM000123'
         self.assertEqual(self.resolve()['fields']['verified_user_id'], 'TM000123')
