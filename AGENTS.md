@@ -24,6 +24,8 @@ Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` define
 
 `scripts/prepare_institutional_profiles.py` prepares query 09 from the reviewed batch, verifies correspondence to current SQLite requests and restricts each evidence source by account scope. It exports source evidence as JSON per row. `import-users` validates the reviewed batch against current SQLite requests and imports through `institutional.py`. Profiles overlay exports by normalized exact email and operation date; raw operations and their versions never change. Separate institutional tables retain evidence, review, settings and semantic profile versions; identical imports are idempotent. Partial profiles retain known attributes and label missing ones for manual review. Pending descriptive report attributes display Pendiente de revisión with pending_review status, without inventing verified IDs or blocking operations.
 
+Academic validation SQL prepared under `data/` with `source_datasets` prefixed `validation:` is diagnostic evidence for known persons, not operations or new email-resolution proof. Never import it as the production profile batch. A PSG program reference without enrollment, EDC emission/start dates, and unconfirmed IC certificate codes do not prove graduation.
+
 `README.md` is the sole usage guide. Local `.env` supplies Alma/LibCal secrets, `config.toml` supplies routes, maps and reporting catalogs, and `secrets/` contains Google OAuth JSON. Templates are committed; populated configuration is ignored. Private references under `data/referencias/` are not repository dependencies.
 
 ## Commands and Verification

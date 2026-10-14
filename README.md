@@ -143,6 +143,17 @@ El campus laboral se configura en `[institutional.labor_campuses]` mediante clav
 
 Para ampliar las fechas del piloto necesitamos confirmar qué período corresponde a cada fecha, considerando modalidad o programa cuando tengan calendarios distintos. Las fechas de clases, secciones o carga de datos no demuestran por sí solas el inicio y fin de un período institucional completo.
 
+### Validar egresados, Posgrado y Continua
+
+Para los casos de referencia del piloto, copia **`data/referencias/usuarios/lote/11_validar_academicos_preparado.sql`** al equipo institucional. Ejecútalo completo una sola vez en SSMS, en la misma base y sin completar parámetros. Guarda sus dos cuadrículas con encabezados en `data/referencias/usuarios/actual/`:
+
+1. `11_evidencia_academica.csv`: conserva íntegra la columna JSON `profile_data`.
+2. `11_estados_academicos.csv`: catálogos para contrastar los códigos originales.
+
+El archivo preparado contiene identificadores privados y se mantiene fuera de Git. Reúne consultas existentes de perfiles y el catálogo público `sql/institutional/11_estados_academicos.sql`. Sus filas son evidencia de cuatro casos conocidos, no préstamos/reservas ni prueba de una nueva coincidencia por correo; **no se importan con `import-users`**.
+
+Para Posgrado se necesita además un caso con matrícula o egreso conocido: una referencia de programa sin matrícula no basta. Para Continua se debe comprobar vigencia/fin de estudios; inicio o emisión de un documento no equivalen a egreso. En instituto, el significado del estado de certificado debe confirmarse antes de clasificarlo automáticamente.
+
 ### Preparar otro lote
 
 1. Extrae las operaciones necesarias con `sync --extract-only`.
