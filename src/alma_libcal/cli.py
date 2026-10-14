@@ -36,6 +36,10 @@ def parser():
             command.add_argument("--to", dest="date_to", type=parse_date)
             command.add_argument("--extract-only", action="store_true", help="Guardar en SQLite sin publicar en Google.")
     commands.add_parser("status", help="Ver estado y pendientes locales, sin consultar APIs.")
+    users = commands.add_parser('import-users', help='Importar perfiles institucionales revisados sin consultar APIs.')
+    users.add_argument('evidence', type=Path, help='CSV de evidencia exportado por la consulta 09.')
+    users.add_argument('--review', type=Path, required=True, help='CSV del lote 08 revisado.')
+    users.add_argument('--output', type=Path, default=Path('data/reportes'), help='Carpeta privada para CSV completos.')
     discover = commands.add_parser("discover-libcal", help="Consultar ubicaciones, categorías, recursos o formularios.")
     discovery = discover.add_mutually_exclusive_group()
     discovery.add_argument("--locations", nargs="+", type=int, help="IDs lid de los campus para listar sus categorías.")
@@ -95,6 +99,16 @@ def main(argv=None):
                 if arguments.command == "status":
                     table = store.control()
                     print(json.dumps([dict(zip(table[0], row)) for row in table[1:]], ensure_ascii=False, indent=2))
+                    return 0
+                if arguments.command == 'import-users':
+                    from .institutional import import_users
+                    output = arguments.output.resolve()
+                    if not output.is_relative_to((config.base / 'data').resolve()):
+                        raise PilotError('Guarda los reportes privados dentro de data/, fuera de Git.')
+                    result = import_users(store, arguments.evidence, arguments.review,
+                                          config.raw.get('institutional', {}),
+                                          config.raw.get('reporting', {}), output)
+                    print(json.dumps(result, ensure_ascii=False, indent=2))
                     return 0
                 selected = list(dict.fromkeys(arguments.only or DATASETS))
                 if arguments.command == "publish":

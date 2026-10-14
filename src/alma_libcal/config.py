@@ -132,6 +132,17 @@ def load_config(path: Path) -> Config:
             raise ConfigError('reporting.attendance_statuses solo admite Sí, No o - como resultado.')
         if 'service_accounts' in reporting:
             reporting['service_accounts'] = service_accounts(reporting['service_accounts'])
+        institutional = raw.get('institutional', {})
+        if not isinstance(institutional, dict):
+            raise ConfigError('Configura institutional como una sección TOML.')
+        for catalog in ('university_period_by_date', 'labor_business_units', 'labor_campuses'):
+            mapping = institutional.get(catalog, {})
+            if not isinstance(mapping, dict) or any(
+                    not isinstance(k, str) or not k.strip() or not isinstance(v, str) or not v.strip()
+                    for k, v in mapping.items()):
+                raise ConfigError(f'Configura institutional.{catalog} con pares de texto no vacíos.')
+        for operation in institutional.get('university_period_by_date', {}):
+            date.fromisoformat(operation)
         timezone = project.get("timezone", "America/Lima")
         ZoneInfo(timezone)
         start = date.fromisoformat(project.get("start_date", "2026-10-06"))

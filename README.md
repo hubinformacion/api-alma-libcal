@@ -1,6 +1,6 @@
 # Alma + LibCal — Guía de uso
 
-Proyecto en desarrollo para extraer operaciones de biblioteca, guardarlas en SQLite y publicar reportes separados en Google Sheets. Actualmente las pruebas y extracciones se ejecutan manualmente. Los jobs diarios y el cruce con la base universitaria serán fases posteriores.
+Proyecto en desarrollo para extraer operaciones de biblioteca, guardarlas en SQLite y publicar reportes separados en Google Sheets. Actualmente las pruebas y extracciones se ejecutan manualmente. El cruce institucional se realiza mediante archivos exportados desde SSMS; la conexión directa y los jobs diarios siguen pendientes.
 
 ## Ejecutar desde la terminal
 
@@ -51,6 +51,7 @@ Todos se preceden de `.venv/bin/python -m alma_libcal`:
 | `sync` | Extraer, guardar y publicar; admite `--only`, `--from`, `--to`, `--extract-only` |
 | `publish --only prestamos` | Publicar solo el conjunto indicado, sin consultar el origen |
 | `status` | Consultar estado, cantidades y errores locales |
+| `import-users 09.csv --review 08_revisada.csv` | Validar e importar perfiles institucionales y generar CSV completos en `data/reportes/`; no publica |
 | `inspect-alma --dataset renovaciones --from 2026-10-06 --to 2026-10-07` | Mostrar columnas; necesario tras modificar Analytics |
 | `inspect-alma --dataset prestamos --without-filter` | Diagnosticar el acceso sin filtro de fecha |
 | `check-libcal --location 20114 --category 42372` | Contar reservas de salas de Cusco de hoy, sin guardarlas; admite `--date` para hoy/futuro |
@@ -63,7 +64,7 @@ Todos se preceden de `.venv/bin/python -m alma_libcal`:
 
 ## Salida compacta de Sheets
 
-`[reporting].sheet_layout = "compact"` publica solo la información de reportería: ahora 21 columnas para préstamos, 23 para renovaciones y 28 para reservas. Se conserva `record_id`; en renovaciones se conserva también `loan_id`. Se omiten columnas técnicas duplicadas, como loan_channel, códigos de material, versiones y marcas de auditoría. Meses y horas derivadas no forman parte del esquema compacto; fechas y timestamps base permiten calcularlos.
+`[reporting].sheet_layout = "compact"` publica solo la información de reportería: ahora 21 columnas para préstamos, 23 para renovaciones y 29 para reservas. Se conserva `record_id`; en renovaciones se conserva también `loan_id`. Se omiten columnas técnicas duplicadas, como loan_channel, códigos de material, versiones y marcas de auditoría. Meses y horas derivadas no forman parte del esquema compacto; fechas y timestamps base permiten calcularlos.
 
 SQLite y los reportes completos mantienen todos los atributos. `sheet_layout = "full"` permite recuperarlos en Sheets sin volver a consultar las APIs. Si necesitas personalizar una pestaña, puedes añadir en el mismo config.toml:
 
@@ -84,36 +85,60 @@ La lista reemplaza la selección de ese conjunto. Los nombres deben existir, ser
 - **Asistencia:** independiente del estado de reserva. Sí → 1; No explícito → 0; sin registro → vacío en el indicador. Un estado desconocido tampoco se interpreta como ausencia. Equivalencias editables en `[reporting.attendance_statuses]`.
 - **Duración:** horas decimales exactas entre inicio y fin, incluso al cruzar medianoche; corresponde a tiempo reservado, no necesariamente a uso efectivo.
 - **Formularios:** se extraen respuestas por ID: celular, correos de integrantes y términos. No se exportan los textos de preguntas.
-- **Usuarios:** claves originales y nombres manuales se conservan como `source_user_*`. El correo puede aportar una clave candidata anterior a @. Los atributos verificados quedan pendientes del cruce universitario a la fecha de operación; los usos internos sin usuario no requieren ese cruce.
+- **Usuarios:** claves originales y nombres manuales se conservan como `source_user_*`. El correo puede aportar una clave candidata anterior a @. Los atributos verificados provienen del cruce institucional a la fecha de operación; los usos internos sin usuario no requieren ese cruce.
 - **Meses y horas:** se calculan al exportar, sin duplicarlos en SQLite. Para omitir esas columnas en Sheets y utilizar un calendario de Power BI, cambia `[reporting].include_date_parts = false`.
 
-Los archivos de `data/` son locales, contienen información personal y no se publican en GitHub. Los CSV de esta prueba están en **`data/reportes/`**, uno por conjunto y fecha. Son copias de ese momento: `sync` no los actualiza automáticamente. Las referencias aportadas para diseño se conservan localmente en `data/referencias/`; la especificación de API y la arquitectura institucional están en `data/referencias/technical/`, fuera del repositorio publicado.
+Los archivos de `data/` son locales, contienen información personal y no se publican en GitHub. Los CSV completos generados por `import-users` están en **`data/reportes/prestamos.csv`**, **`renovaciones.csv`** y **`reservas.csv`**, con todo el histórico local de cada conjunto. `usuarios_revision.csv` detalla el estado y motivo por cuenta/fecha. Son copias del momento de la importación: `sync` y `publish` no actualizan estos archivos. Las referencias aportadas para diseño se conservan localmente en `data/referencias/`; la especificación de API y la arquitectura institucional están en `data/referencias/technical/`, fuera del repositorio publicado.
 
-## Piloto institucional mediante SQL Management Studio
+## Incorporar los datos institucionales
 
-Los archivos de **`sql/institutional/`** contienen consultas de lectura preparadas con la arquitectura recibida. Todavía deben ejecutarse en tu base; aquí no hay conexión a ese servidor. No requieren instalar Python ni WSL en el equipo institucional.
+En el piloto, el equipo institucional ejecuta SQL de lectura en SSMS y este equipo importa sus CSV. No compartas credenciales ni necesitas instalar Python en el equipo institucional.
 
-1. Selecciona la base institucional en SSMS y ejecuta **00_metadatos.sql** para confirmar objetos, columnas y claves. Guarda cada cuadrícula con encabezados según el nombre indicado en sus comentarios.
-2. En **01_identificar_persona.sql**, sustituye los NULL del encabezado por `N'valor'` para correo, documento o identificador de UN caso. El identificador es source_user_id, no record_id ni loan_id. Ejecuta el archivo completo, no un SELECT aislado. Todos los candidatos se conservan: más de un resultado requiere revisión.
-3. Copia ID_PERSONA del resultado a **02_roles_persona.sql** y **03_matriculas_persona.sql**, y conserva como fecha de operación el 6 o 7 de octubre para este piloto. El ID_PERSONA no es el DNI. Exporta sus cuadrículas con los nombres indicados y un sufijo de caso.
-4. Ejecuta **04_catalogos.sql** una vez para obtener códigos de período, campus, modalidad y estados.
-5. Guarda los CSV originales en **`data/referencias/usuarios/`**. Incluye encabezados y conserva documentos/códigos como texto; no pases por una conversión numérica de Excel. Una cuadrícula vacía puede indicarse como “sin filas”, sin generar otro archivo.
+### Importar el lote actual
 
-Primera entrega sugerida: tu caso con correo estudiantil antiguo, correo basado en DNI y cuenta laboral. Después agrega casos de intercambio TM, instituto i, docente, dos carreras y cambio de campus. Para cada caso necesitamos una nota de qué resultado esperas y en qué fecha; no se requieren contraseñas, direcciones, fechas de nacimiento ni datos ajenos al perfil de reportería.
+El archivo 09 debe conservar encabezados y la columna JSON completa, sin editarla en Excel. Para los archivos recibidos en este piloto:
 
-También necesitaremos el calendario académico: ID/código de período, fecha de inicio y fin, y el significado de estados de matrícula, ESTADO_ACTIVO, ES_DOCENTE y fechas de ingreso/retiro/término. Las claves ID_FECHA no se tratarán como fechas hasta confirmar su formato. FEC_ACTUALIZACION es actualización/carga, no vigencia académica.
+```bash
+.venv/bin/python -m alma_libcal import-users data/referencias/usuarios/actual/09_perfiles_lote.csv --review data/referencias/usuarios/lote/08_validacion_lote_revisada.csv
+```
 
-El correo exacto será el primer criterio, contrastado con los registros institucionales. El documento y los códigos estudiantiles respaldarán la identificación y los cambios de correo; no se reconstruyen cuentas docentes desde sus iniciales. Para una cuenta laboral con roles vigentes, la prioridad acordada es docente sobre administrativo. Una cuenta académica se resolverá con sus registros académicos, no solo por el formato de su correo.
+Esto valida correspondencia con el histórico, persona, fecha y ámbito antes de importar. Guarda perfiles y evidencia en tablas separadas de SQLite y genera los cuatro CSV de `data/reportes/`. Repetir un lote idéntico no crea versiones de perfil ni revisiones de publicación adicionales. Los registros originales de Alma/LibCal permanecen intactos.
 
-El correo utilizado determina qué perfiles consultar: una cuenta de instituto utiliza datos de IC; una cuenta académica universitaria utiliza Pregrado, Posgrado o Continua; una cuenta laboral utiliza datos administrativos/docentes. La persona puede ser la misma, pero los atributos no se trasladan entre estos ámbitos. La selección del estudio más reciente se realiza dentro del ámbito de la cuenta y a la fecha de operación.
+Abre los CSV para revisar `user_type`, `user_full_name`, campus y programa. `user_match_status` distingue:
 
-`user_type` tendrá Estudiante, Egresado, Docente o Administrativo. Estudiante requiere matrícula vigente y estar cursando el período aplicable; Egresado agrupa egreso, bachiller y titulación, conservando el estado original. La falta de matrícula actual no prueba egreso. Un perfil sin evidencia suficiente quedará pendiente, manteniendo la operación. Estas reglas están acordadas; el enriquecimiento automático sigue pendiente de implementación.
+| Estado | Significado |
+| --- | --- |
+| `matched_profile` | Perfil con los atributos de reportería completos |
+| `partial_profile` | Tipo de usuario identificado; faltan atributos o existen ambigüedades |
+| `pending_review` | Identidad, ámbito o rol pendiente de comprobar |
+| `configured_service_account` | Cuenta de área del catálogo local |
+| `not_applicable` | Uso interno de Alma |
 
-Al exportar, los atributos descriptivos vacíos de perfiles pendientes muestran **Pendiente de revisión**, con `user_match_status = "pending_review"`. Los identificadores verificados permanecen vacíos y se conservan correo/identificador originales. Las cuentas de servicios y los usos internos mantienen sus propias reglas. Esta etiqueta permite continuar con el lote y revisar las excepciones manualmente.
+Los atributos descriptivos sin evidencia muestran **Pendiente de revisión**. Un nombre completo institucional no se divide por suposición; LibCal conserva además nombres manuales en `source_user_*`. Ninguna excepción elimina ni duplica operaciones.
 
-Las cuentas de áreas se incluyen por correo exacto en la lista `service_accounts` de `[reporting]`, dentro de config.toml, por ejemplo `service_accounts = ["area@example.edu", "otra-area@example.edu"]`. Todas se reportan como Administrativo y campus Virtual, con `user_match_status = "configured_service_account"`. La excepción se aplica al exportar/publicar, incluso si la base vincula el correo a una persona: no hereda su nombre ni atributos académicos. Los datos originales se conservan y los usos internos mantienen su tratamiento independiente. No se identifica una cuenta de servicio por palabras de su dirección; debe figurar en esta lista.
+Después de revisar, publica el histórico enriquecido:
 
-Elegiremos la matrícula más reciente aplicable a la fecha de operación, con estados y vigencias confirmados; no simplemente el mayor ID de período o la última carga. Si dos carreras siguen vigentes y no existe un criterio confirmado, se conservará la ambigüedad sin duplicar la operación ni elegir arbitrariamente un perfil. La integración automática todavía no está implementada: este piloto define esas reglas con datos reales.
+```bash
+.venv/bin/python -m alma_libcal publish --only prestamos renovaciones reservas
+```
+
+### Reglas y configuración
+
+- El correo utilizado delimita el perfil: instituto → IC; universidad → UC/PSG/EDC; trabajo → empleo/docencia. No se trasladan atributos de una cuenta a otra por compartir documento.
+- Para UC, Estudiante requiere el período confirmado, estado académico y matrícula ACTIVO, créditos positivos y fechas aplicables. No se usan períodos futuros. En `[institutional.university_period_by_date]` está confirmado **202620 únicamente para 2026-10-06, 07 y 08**. Para otras fechas se requiere validar el calendario.
+- Egresado requiere evidencia formal anterior a la operación; incluye bachiller/titulado. No estar matriculado y los estados comerciales de Continua no demuestran egreso. La clasificación de Posgrado, Continua y egreso IC todavía requiere validar sus reglas; si esos estudios son más recientes, el perfil queda pendiente.
+- Docente precede a Administrativo con evidencia docente vigente; incluye JEFE DE PRACTICA. ES_DOCENTE por sí solo no demuestra vigencia. FECHA_TERMINO no se usa como retiro; se contrasta ingreso y FECHA_RETIRO.
+- Carreras simultáneas conservan los atributos comunes y dejan pendientes los ambiguos. Los códigos laborales no se convierten en campus sin equivalencias confirmadas en `[institutional.labor_campuses]`. En `[institutional.labor_business_units]` están confirmados UCCI → Universidad Continental e IESC → Instituto Continental.
+- Las cuentas de servicios se agregan por correo exacto en `[reporting].service_accounts`. Se reportan como Administrativo y campus Virtual, sin atributos de persona. No cambia el campus de la operación.
+
+### Preparar otro lote
+
+1. Extrae las operaciones necesarias con `sync --extract-only`.
+2. Ejecuta `.venv/bin/python scripts/prepare_institutional_check.py`. Lleva el SQL preparado bajo `data/referencias/usuarios/lote/` a SSMS, ejecútalo completo y exporta con encabezados. Revisa identidades y ámbitos antes de preparar perfiles.
+3. Con `08_validacion_lote_revisada.csv` actualizado, ejecuta `.venv/bin/python scripts/prepare_institutional_profiles.py`. En SSMS ejecuta `09_extraer_perfiles_preparado.sql` y guarda `09_perfiles_lote.csv` con encabezados.
+4. Importa indicando las rutas reales y revisa los CSV antes de publicar. Si cambian las operaciones del lote, la validación exige prepararlo nuevamente.
+
+Las consultas `00`–`07` de `sql/institutional/` sirven para investigar excepciones; no se repiten para cada extracción. Los SQL preparados y CSV personales se guardan exclusivamente bajo `data/`, excluido de Git.
 
 ## Histórico de LibCal y próximos pasos
 
@@ -121,7 +146,7 @@ Elegiremos la matrícula más reciente aplicable a la fecha de operación, con e
 
 Antes de producción debemos preparar una carga inicial desde una exportación administrativa con IDs, fechas/horas completas, recursos, estados, asistencia y respuestas. Su importador y la consulta histórica por ID todavía no están implementados. Luego necesitaremos capturar cambios con frecuencia suficiente para conservar cancelaciones y asistencias posteriores; una consulta semanal aislada no cubre la ventana de 24 horas.
 
-El orden siguiente es: validar esta nueva muestra, conectar la base universitaria en modo lectura y resolver vigencias históricas, implementar publicación incremental por lotes antes de ampliar el volumen, completar el histórico de LibCal y finalmente programar jobs con control de fallos y recuperación.
+El orden siguiente es: revisar el cruce del piloto, completar calendarios y equivalencias pendientes, preparar el acceso institucional en modo lectura, implementar publicación por lotes antes de ampliar el volumen, completar el histórico de LibCal y programar jobs con recuperación de fallos.
 
 La publicación actual sustituye las tablas seleccionadas en una petición atómica y tiene un límite local de 1,8 MB. No compara filas nuevas/modificadas en Sheets. Para cargas grandes primero debe ampliarse el publicador.
 
@@ -132,49 +157,3 @@ Código en `src/alma_libcal/`, pruebas automatizadas en `tests/` y fixtures fict
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover -s tests -v
 ```
-
-### Segunda comprobación del piloto institucional
-
-Los primeros CSV llegaron sin encabezados: se reconstruyeron copias locales en `data/referencias/usuarios/normalizados/`, conservando los originales. Los TXT vacíos indican que la consulta no devolvió filas; no demuestran por sí solos que la persona no tenga el rol.
-
-Repite `01_identificar_persona.sql` por cada cuenta con correo completo. El campo identificador es un código sin dominio; si se introduce un correo allí, la consulta extrae su parte anterior a @ y avisa en Mensajes. Un dominio incompleto genera advertencia, nunca se completa por suposición.
-
-Ejecuta `05_fechas_y_periodos.sql` con el ID_PERSONA del caso para resolver ID_FECHA usando `dbo.DIM_TIEMPO.DES_TIEMPO`, comprobar períodos y buscar un calendario real. La consulta incluye una muestra de horarios docentes, con sus fechas de texto originales, para validar el formato. Exporta las cuadrículas con los nombres indicados en sus comentarios.
-
-Si los horarios docentes no devuelven filas o hay referencias tanto en EDC como en PSG, ejecuta `06_completar_perfiles.sql` con el mismo ID_PERSONA. Sus tres resultados muestran el perfil de Continua, los nombres del programa de Posgrado y semanas de docencia de otra fuente. Una fecha de emisión no se interpreta como egreso; una referencia de programa no demuestra matrícula vigente. Guarda las cuadrículas con encabezados en la carpeta local de referencias, siguiendo los nombres de sus comentarios.
-
-Para reportería, JEFE DE PRACTICA se considera Docente y tiene prioridad sobre Administrativo cuando la asignación corresponde a la fecha de operación. ES_DOCENTE de nómina no es prueba única de docencia. FECHA_TERMINO tampoco se trata como baja laboral sin validar su significado y las renovaciones/contratos indefinidos; debe contrastarse con FECHA_RETIRO y la fuente laboral.
-
-El piloto prioriza las cuentas institucionales actuales; las equivalencias de correos antiguos se resolverán después. `04_catalogos.sql` incluye tipos de estudiante y estados del funnel de Continua. Estos últimos no se interpretan automáticamente como estados de egreso. `03_matriculas_persona.sql` conserva también el tipo de estudiante de la fuente junto al estado académico; ninguna categoría se deduce solo del correo.
-
-Para comprobar que el cruce funciona cuando Alma/LibCal aportan solo correo, usa `07_validar_cuentas.sql` con un documento de referencia y los correos conocidos de instituto, universidad y trabajo de una misma persona. Ejecútalo una vez. El primer resultado busca candidatos sin usar ese documento como filtro y después compara lo encontrado con la referencia; `unmatched` indica un vínculo pendiente. Los demás resultados muestran identificadores de instituto, evidencia de certificados y fuentes accesibles de cuentas. Exporta las cuatro cuadrículas con los nombres de sus comentarios. Los métodos `candidate` deben validarse antes de automatizarse. Si falta la relación correo/código/persona de instituto o intercambio, necesitaremos una exportación o vista institucional de cuentas; no se deduce desde nombres ni se elimina la operación sin coincidencia.
-
-La consulta 07 incluye como candidato de instituto el código numérico posterior a la i inicial, comparado como texto con ID_ALUMNO. Dos casos del piloto, uno histórico y otro con matrícula actual, coinciden con la persona esperada; esto no demuestra cobertura general. Los dominios admitidos son continental.edu.pe e icontinental.edu.pe. No se eliminan ceros iniciales ni se interpreta la existencia de matrículas históricas como vigencia o egreso. `IC.FCT_EGRESADOSAPTOS` aporta estados y fechas de certificados: los estados y la aptitud deben contrastarse antes de inferir egreso.
-
-Para intercambio, las consultas 07/08 contrastan el prefijo completo TM seguido de dígitos con COD_DOCUMENTO, ignorando diferencias de mayúsculas. Se conserva como identificador institucional alfanumérico, sin convertirlo a DNI numérico; encontrar la identidad no demuestra matrícula vigente.
-
-### Comprobar los correos reales por lote
-
-Prepara un SQL privado desde el histórico local, sin modificar SQLite:
-
-```bash
-.venv/bin/python scripts/prepare_institutional_check.py
-```
-
-Abre `data/referencias/usuarios/lote/08_validar_lote_preparado.sql` en SSMS del equipo institucional. Selecciona la misma base de las pruebas y ejecuta todo el archivo una sola vez. Guarda su única cuadrícula con encabezados como `data/referencias/usuarios/lote/08_validacion_lote.csv` en este proyecto. No ejecutes la plantilla pública `sql/institutional/08_validar_lote.sql`.
-
-El lote agrupa correo/fecha y conserva cuántos registros representa; omite usos internos y cuenta por separado los registros sin correo. No requiere completar DNIs. Reutiliza los métodos de la consulta 07. `matched_identity` indica un único candidato; `ambiguous`, varias personas; `unmatched`, ninguna; `source_without_person`, cuenta encontrada sin vínculo de persona; `invalid_email`, dirección incompleta. `account_scope` distingue institute, university y labor, o queda pendiente/ambiguo. Esta prueba valida identificación y ámbito, no matrícula/rol ni titularidad general. La asignación de atributos y publicación del cruce vendrán después de revisar sus resultados. El SQL preparado contiene correos reales y permanece dentro de `data/`, fuera de Git.
-
-### Extraer los perfiles institucionales del lote revisado
-
-Con `08_validacion_lote_revisada.csv` revisado y guardado bajo `data/referencias/usuarios/lote/`, prepara la segunda etapa:
-
-```bash
-.venv/bin/python scripts/prepare_institutional_profiles.py
-```
-
-Lleva **`data/referencias/usuarios/lote/09_extraer_perfiles_preparado.sql`** al equipo institucional y ejecútalo completo una sola vez en la misma base. Guarda la única cuadrícula con encabezados como **`data/referencias/usuarios/lote/09_perfiles_lote.csv`**. No necesitas instalar Python en ese equipo ni completar parámetros.
-
-Se consultan solo personas con identidad y ámbito definidos: IC para instituto; UC/PSG/EDC para cuenta académica universitaria; empleo/docencia para cuenta laboral. Servicios y excepciones pendientes quedan fuera de esta consulta. Cada fila es evidencia de una fuente: varias filas por cuenta reflejan su historial y no representan nuevas operaciones. Conserva íntegra la columna `profile_data`, en JSON, sin editarla en Excel. Se incluyen estados, fechas y catálogos disponibles; la selección del perfil aplicable y su incorporación a SQLite/Sheets serán posteriores a revisar este CSV.
-
-Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.

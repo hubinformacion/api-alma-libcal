@@ -85,7 +85,7 @@ COMPACT_SHEET_FIELDS = {
     'renovaciones': ('record_id', 'loan_id', 'user_full_name', *COMPACT_USER_FIELDS, 'item_barcode',
                     'item_material_type_name', 'item_policy_name', 'item_title', 'renewal_type',
                     'renewal_date', 'renewal_quantity', 'report_campus_name', 'report_campus_source', 'loan_status'),
-    'reservas': ('record_id', 'user_first_name', 'user_last_name', *COMPACT_USER_FIELDS,
+    'reservas': ('record_id', 'user_full_name', 'user_first_name', 'user_last_name', *COMPACT_USER_FIELDS,
                 'booking_account_email', 'booking_resource_name', 'booking_category_name',
                 'booking_campus_name', 'booking_date', 'booking_start_at', 'booking_end_at',
                 'booking_duration_hours', 'booking_status', 'booking_attendance_status',
@@ -302,6 +302,7 @@ class Record:
                           user_match_status='configured_service_account', report_user_email=self.source_user_email)
         if values['user_match_status'] in ('pending', 'unmatched', 'ambiguous', 'scope_pending', 'pending_review'):
             values['user_match_status'] = 'pending_review'
+        if values['user_match_status'] not in ('not_applicable', 'configured_service_account'):
             for name in ('user_full_name', 'user_name', 'user_lastname', 'user_type', 'user_modality',
                          'user_campus', 'user_program', 'user_department', 'user_business_unit'):
                 if not values[name]:

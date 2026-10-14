@@ -2,7 +2,7 @@ import json
 import hashlib
 import sqlite3
 from contextlib import contextmanager
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,6 +38,24 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.executescript("""
             PRAGMA foreign_keys = ON;
+            CREATE TABLE IF NOT EXISTS institutional_imports (
+                import_hash TEXT PRIMARY KEY, imported_at TEXT NOT NULL,
+                evidence_csv TEXT NOT NULL, review_csv TEXT NOT NULL, settings_json TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS institutional_profiles (
+                source_email TEXT NOT NULL, activity_date TEXT NOT NULL,
+                profile_json TEXT NOT NULL, profile_hash TEXT NOT NULL,
+                version INTEGER NOT NULL, import_hash TEXT NOT NULL,
+                PRIMARY KEY(source_email,activity_date),
+                FOREIGN KEY(import_hash) REFERENCES institutional_imports(import_hash)
+            );
+            CREATE TABLE IF NOT EXISTS institutional_profile_versions (
+                source_email TEXT NOT NULL, activity_date TEXT NOT NULL,
+                version INTEGER NOT NULL, profile_json TEXT NOT NULL,
+                import_hash TEXT NOT NULL, changed_at TEXT NOT NULL,
+                PRIMARY KEY(source_email,activity_date,version),
+                FOREIGN KEY(import_hash) REFERENCES institutional_imports(import_hash)
+            );
             CREATE TABLE IF NOT EXISTS records (
                 dataset TEXT NOT NULL, record_id TEXT NOT NULL,
                 activity_date TEXT NOT NULL, payload TEXT NOT NULL,
@@ -64,6 +82,9 @@ class Store:
                 PRIMARY KEY(dataset,record_id,version)
             );
         """)
+        import_columns = {row[1] for row in self.db.execute('PRAGMA table_info(institutional_imports)')}
+        if 'review_csv' not in import_columns:
+            self.db.execute("ALTER TABLE institutional_imports ADD COLUMN review_csv TEXT NOT NULL DEFAULT ''")
         columns = {row[1] for row in self.db.execute('PRAGMA table_info(records)')}
         for name, definition in {'record_version': 'INTEGER NOT NULL DEFAULT 0',
                                  'record_changed_at': "TEXT NOT NULL DEFAULT ''",
@@ -144,10 +165,53 @@ class Store:
         return [Record(**json.loads(row[0])) for row in self.db.execute(
             "SELECT payload FROM records WHERE dataset=? ORDER BY activity_date,record_id", (dataset,))]
 
+    def save_profiles(self, profiles, evidence_csv, review_csv, settings):
+        from .institutional import canonical, fingerprint
+
+        import_hash = fingerprint([evidence_csv, review_csv, settings])
+        changed = set()
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO institutional_imports(import_hash,imported_at,evidence_csv,review_csv,settings_json) VALUES(?,?,?,?,?)',
+                            (import_hash, now(), evidence_csv, review_csv, canonical(settings)))
+            for email, operation, profile in profiles:
+                digest = fingerprint(profile)
+                previous = self.db.execute(
+                    'SELECT profile_hash,version FROM institutional_profiles WHERE source_email=? AND activity_date=?',
+                    (email, operation)).fetchone()
+                if previous and previous['profile_hash'] == digest:
+                    continue
+                version = previous['version'] + 1 if previous else 1
+                payload = canonical(profile)
+                self.db.execute('INSERT INTO institutional_profiles VALUES(?,?,?,?,?,?) '
+                                'ON CONFLICT(source_email,activity_date) DO UPDATE SET '
+                                'profile_json=excluded.profile_json,profile_hash=excluded.profile_hash,'
+                                'version=excluded.version,import_hash=excluded.import_hash',
+                                (email, operation, payload, digest, version, import_hash))
+                self.db.execute('INSERT INTO institutional_profile_versions VALUES(?,?,?,?,?,?)',
+                                (email, operation, version, payload, import_hash, now()))
+                changed.add((email, operation))
+            affected = set()
+            for row in self.db.execute('SELECT dataset,payload FROM records'):
+                record = Record(**json.loads(row['payload']))
+                if ((record.source_user_email.strip().lower(), record.activity_date) in changed
+                        and not (record.dataset == 'prestamos' and record.in_house_loan_indicator == 'Y')):
+                    affected.add(record.dataset)
+            for dataset in affected:
+                self.db.execute('UPDATE snapshots SET revision=revision+1 WHERE dataset=?', (dataset,))
+        return len(changed)
+
     def table(self, dataset, reporting=None):
+        from .institutional import USER_FIELDS
+
+        profiles = {(row['source_email'], row['activity_date']): json.loads(row['profile_json'])['fields']
+                    for row in self.db.execute('SELECT source_email,activity_date,profile_json FROM institutional_profiles')}
         table = [report_headers(dataset, reporting)]
         for row in self.db.execute('SELECT payload,record_version,record_changed_at FROM records WHERE dataset=? ORDER BY activity_date,record_id', (dataset,)):
             record = Record(**json.loads(row['payload']))
+            if not (dataset == 'prestamos' and record.in_house_loan_indicator == 'Y'):
+                fields = profiles.get((record.source_user_email.strip().lower(), record.activity_date))
+                if fields:
+                    record = replace(record, **{k: v for k, v in fields.items() if k in USER_FIELDS})
             table.append(record.report_values(reporting, {'record_version':row['record_version'],
                                                           'record_changed_at':row['record_changed_at']}))
         return table
