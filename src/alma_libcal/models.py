@@ -290,7 +290,7 @@ class Record:
                       record_version=0, record_changed_at='', report_user_email=self.verified_user_email or self.source_user_email)
         values.update(audit or {})
         values.update(site_name=campus_name(self.site), loan_origin_campus_name=campus_name(self.loan_origin_campus))
-        if self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y' and not self.user_id:
+        if self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y':
             values['user_match_status'] = 'not_applicable'
         service = reporting.get('service_accounts', {}).get(self.source_user_email.strip().lower())
         if service and not (self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y'):
@@ -300,6 +300,12 @@ class Record:
                 values[name] = ''
             values.update(user_type=service['user_type'], user_campus=service['user_campus'],
                           user_match_status='configured_service_account', report_user_email=self.source_user_email)
+        if values['user_match_status'] in ('pending', 'unmatched', 'ambiguous', 'scope_pending', 'pending_review'):
+            values['user_match_status'] = 'pending_review'
+            for name in ('user_full_name', 'user_name', 'user_lastname', 'user_type', 'user_modality',
+                         'user_campus', 'user_program', 'user_department', 'user_business_unit'):
+                if not values[name]:
+                    values[name] = 'Pendiente de revisión'
         catalog = reporting.get('material_types', {})
         values['material_name'] = catalog.get(self.item_material_type, 'Sin clasificar') if self.item_material_type else ''
         values['material_mapping_status'] = ('mapped' if self.item_material_type in catalog else

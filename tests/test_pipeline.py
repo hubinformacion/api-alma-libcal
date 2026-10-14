@@ -103,7 +103,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(row['item_material_type_mapping_status'],'mapped')
         self.assertEqual(row['user_id'],'')
         self.assertEqual(row['source_user_id'],'000123')
-        self.assertEqual(row['user_match_status'],'pending')
+        self.assertEqual(row['user_match_status'],'pending_review')
         row=dict(zip(*self.store.table('prestamos',{'material_types':{}})))
         self.assertEqual(row['item_material_type_name'],'Sin clasificar')
         self.assertEqual(self.store.records('prestamos')[0].item_material_type,'BOOK')
@@ -285,7 +285,7 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(output['report_campus_name'], name)
             self.assertEqual(output['report_campus_source'], 'renewal')
 
-    def test_booking_report_transforms_cross_midnight_and_keeps_canonical_identity_empty(self):
+    def test_booking_report_transforms_cross_midnight_and_marks_unverified_names(self):
         record = Record('reservas','B1','2026-10-06',source_user_email='000123@example.invalid',
                         source_user_name='Manual name', source_user_lastname='Manual surname',
                         starts_at='2026-10-06T23:30:00-05:00',ends_at='2026-10-07T01:00:00-05:00',
@@ -299,8 +299,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(row['booking_month_name'],'Octubre')
         self.assertEqual(row['booking_attendance_status'],'-')
         self.assertEqual(row['source_booking_status'],'Cancelled by Admin')
-        self.assertEqual(row['user_first_name'],'')
-        self.assertEqual(row['user_last_name'],'')
+        self.assertEqual(row['user_first_name'],'Pendiente de revisión')
+        self.assertEqual(row['user_last_name'],'Pendiente de revisión')
         self.assertEqual(row['source_user_first_name'],'Manual name')
         self.assertEqual(row['booking_account_email'],'')
         self.assertEqual(row['booking_account'],'login123')

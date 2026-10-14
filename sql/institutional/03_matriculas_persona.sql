@@ -13,11 +13,13 @@ END;
 SELECT e.ID_PERSONA AS person_id, e.ID_ESTUDIANTE AS student_id, e.COD_ESTUDIANTE AS student_code,
        m.ID_PERIODO AS period_id, p.DES_PERIODO_ACADEMICO AS period_name,
        m.ID_FECHA_MATRICULA AS enrollment_date_key, m.ID_FECHA AS activity_date_key,
+       ten.DES_TIEMPO AS enrollment_date, tac.DES_TIEMPO AS source_activity_date,
        m.ID_CAMPUS AS campus_id, c.DES_CAMPUS AS campus_name,
        m.ID_MODALIDAD AS modality_id, mo.DES_MODALIDAD AS modality_name,
        m.ID_FACULTAD_EAP AS faculty_program_id, fe.ID_EAP AS program_id, a.DES_EAP AS program_name,
        fe.ID_FACULTAD AS faculty_id, f.DES_FACULTAD AS faculty_name,
        m.ID_NIVEL AS academic_level_id, m.ID_ESTADO AS source_status_id,
+       es.DES_ESTADO AS source_status_name, em.DES_ESTADO AS enrollment_status_name,
        m.ID_ESTADO_TIPO_ESTUDIANTE AS source_student_type_id,
        st.DES_TIPO_ESTUDIANTE AS source_student_type_name,
        m.ID_ESTADO_MATRICULA AS enrollment_status_id, m.ID_ESTADO_BANNER AS banner_status_id,
@@ -33,6 +35,10 @@ LEFT JOIN dbo.DIM_FACULTAD_EAP AS fe ON fe.ID_FACULTAD_EAP=m.ID_FACULTAD_EAP
 LEFT JOIN dbo.DIM_EAP AS a ON a.ID_EAP=fe.ID_EAP
 LEFT JOIN dbo.DIM_FACULTAD AS f ON f.ID_FACULTAD=fe.ID_FACULTAD
 LEFT JOIN dbo.DIM_ESTADO_TIPO_ESTUDIANTE AS st ON st.ID_ESTADO_TIPO_ESTUDIANTE=m.ID_ESTADO_TIPO_ESTUDIANTE
+LEFT JOIN dbo.DIM_TIEMPO AS ten ON ten.ID_TIEMPO=m.ID_FECHA_MATRICULA
+LEFT JOIN dbo.DIM_TIEMPO AS tac ON tac.ID_TIEMPO=m.ID_FECHA
+LEFT JOIN dbo.DIM_ESTADO AS es ON es.ID_ESTADO=m.ID_ESTADO
+LEFT JOIN dbo.DIM_ESTADO AS em ON em.ID_ESTADO=m.ID_ESTADO_MATRICULA
 WHERE e.ID_PERSONA=@persona_id
 ORDER BY m.ID_PERIODO,m.ID_FECHA_MATRICULA,m.ID_ESTUDIANTE,m.ID_FACULTAD_EAP;
 
@@ -43,12 +49,20 @@ SELECT m.ID_PERSONA AS person_id, m.ID_ESTUDIANTE AS student_id, m.PIDM_ESTUDIAN
        m.ID_MODALIDAD AS modality_id, mo.DES_MODALIDAD AS modality_name, m.ID_NIVEL AS academic_level_id,
        m.ID_FECHA_MATRICULA AS enrollment_date_key, m.ID_FECHA_INICIO AS start_date_key,
        m.ID_FECHA_FIN AS end_date_key, m.ID_FECHA_CORTE AS cutoff_date_key,
+       ten.DES_TIEMPO AS enrollment_date, ts.DES_TIEMPO AS study_start,
+       te.DES_TIEMPO AS study_end, tc.DES_TIEMPO AS cutoff_date,
        m.ID_ESTADO AS source_status_id, m.ESTADO_ACTIVO AS source_active_status,
+       es.DES_ESTADO AS source_status_name,
        m.INDICADOR_MATRICULA AS source_enrollment_flag, m.FEC_ACTUALIZACION AS source_loaded_at,
        @fecha_operacion AS requested_activity_date
 FROM PSG.FCT_MATRICULA AS m
 LEFT JOIN PSG.DIM_PROGRAMA AS p ON p.ID_PROGRAMA=m.ID_PROGRAMA
 LEFT JOIN PSG.DIM_MODALIDAD AS mo ON mo.ID_MODALIDAD=m.ID_MODALIDAD
+LEFT JOIN dbo.DIM_TIEMPO AS ten ON ten.ID_TIEMPO=m.ID_FECHA_MATRICULA
+LEFT JOIN dbo.DIM_TIEMPO AS ts ON ts.ID_TIEMPO=m.ID_FECHA_INICIO
+LEFT JOIN dbo.DIM_TIEMPO AS te ON te.ID_TIEMPO=m.ID_FECHA_FIN
+LEFT JOIN dbo.DIM_TIEMPO AS tc ON tc.ID_TIEMPO=m.ID_FECHA_CORTE
+LEFT JOIN PSG.DIM_ESTADO AS es ON es.ID_ESTADO=m.ID_ESTADO
 WHERE m.ID_PERSONA=@persona_id
 ORDER BY m.ID_PERIODO,m.ID_FECHA_MATRICULA,m.ID_PROGRAMA;
 
@@ -57,11 +71,13 @@ SELECT m.ID_PERSONA AS person_id, m.ID_ESTUDIANTE AS student_id, m.PIDM AS sourc
        m.ID_PERIODO AS period_id, m.ID_PROGRAMA AS program_id, p.DES_PROGRAMA AS program_name,
        p.DES_TIPO_PROGRAMA AS source_program_type, m.ID_CAMPUS AS campus_id,
        m.ID_FECHA_MATRICULA AS enrollment_date_key, m.ID_NIVEL AS academic_level_id,
+       ten.DES_TIEMPO AS enrollment_date,
        m.ID_ESTADO AS source_status_id, m.ESTADO_ACTIVO AS source_active_status,
        m.NRC AS source_course_section, m.FEC_ACTUALIZACION AS source_loaded_at,
        @fecha_operacion AS requested_activity_date
 FROM EDC.FCT_MATRICULA AS m
 LEFT JOIN EDC.DIM_PROGRAMA AS p ON p.ID_PROGRAMA=m.ID_PROGRAMA
+LEFT JOIN dbo.DIM_TIEMPO AS ten ON ten.ID_TIEMPO=m.ID_FECHA_MATRICULA
 WHERE m.ID_PERSONA=@persona_id
 ORDER BY m.ID_PERIODO,m.ID_FECHA_MATRICULA,m.ID_PROGRAMA;
 

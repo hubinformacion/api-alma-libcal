@@ -37,8 +37,8 @@ class ServiceAccountTests(unittest.TestCase):
             record = Record(dataset='prestamos', record_id='loan-1', activity_date='2026-10-06',
                             source_user_email=email, in_house_loan_indicator=internal)
             row = dict(zip(report_headers('prestamos'), record.report_values(settings)))
-            self.assertEqual(row['user_type'], '')
-            self.assertEqual(row['user_match_status'], 'not_applicable' if internal else 'pending')
+            self.assertEqual(row['user_type'], '' if internal else 'Pendiente de revisión')
+            self.assertEqual(row['user_match_status'], 'not_applicable' if internal else 'pending_review')
 
     def test_config_normalizes_service_email(self):
         with tempfile.TemporaryDirectory() as directory:

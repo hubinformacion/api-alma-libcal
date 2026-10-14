@@ -20,6 +20,8 @@ Two institute pilot cases (historical and current enrollment) match i + ID_ALUMN
 
 Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` defines report headers and transformations; `storage.py` manages current records, versions and execution status. Tests use synthetic fixtures. Read-only institutional discovery queries are in `sql/institutional/` for manual SSMS execution. `scripts/prepare_institutional_check.py` reads SQLite in read-only mode and fills the batch template using identity methods from query 07. Generated SQL with real emails belongs under ignored `data/` only; unique identity and account scope do not prove a valid dated profile.
 
+`scripts/prepare_institutional_profiles.py` prepares query 09 from the reviewed batch, verifies correspondence to current SQLite requests and restricts each evidence source by account scope. It exports source evidence as JSON per row; it does not select profiles or import them yet. Pending descriptive report attributes display Pendiente de revisión with pending_review status, without inventing verified IDs or blocking operations.
+
 `README.md` is the sole usage guide. Local `.env` supplies Alma/LibCal secrets, `config.toml` supplies routes, maps and reporting catalogs, and `secrets/` contains Google OAuth JSON. Templates are committed; populated configuration is ignored. Private references under `data/referencias/` are not repository dependencies.
 
 ## Commands and Verification

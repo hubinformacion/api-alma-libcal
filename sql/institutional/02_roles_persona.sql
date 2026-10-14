@@ -12,13 +12,20 @@ SELECT @documento=LTRIM(RTRIM(p.COD_DOCUMENTO)) FROM dbo.DIM_PERSONA AS p WHERE 
 -- 02_estudiante_uc_CASO.csv: conservar cada carrera, campus y código, no seleccionar la última por FEC_ACTUALIZACION.
 SELECT e.ID_PERSONA AS person_id, e.ID_ESTUDIANTE AS student_id, e.COD_ESTUDIANTE AS student_code,
        e.ID_EAP AS program_id, e.ID_FACULTAD AS faculty_id, e.ID_CAMPUS AS campus_id,
+       ep.DES_EAP AS program_name, fa.DES_FACULTAD AS faculty_name, ca.DES_CAMPUS AS campus_name,
        e.ID_MODALIDAD_INGRESO AS entry_modality_id, e.ID_MODALIDAD_ADMISION AS admission_modality_id,
        e.ID_PERIODO_INGRESO AS entry_period_id, e.ID_PERIODO_EGRESO AS graduation_period_id,
        e.FEC_INGRESO AS admission_date, e.FEC_INICIO_ESTUDIO AS study_start,
        e.FEC_FIN_ESTUDIO AS study_end, e.FEC_EGRESO AS graduation_date,
+       e.FEC_BACHILLER AS bachelor_date, e.FEC_TITULACION AS title_date,
        e.ESTADO AS source_status, e.FEC_ACTUALIZACION AS source_loaded_at,
        @fecha_operacion AS requested_activity_date
-FROM dbo.DIM_ESTUDIANTE AS e WHERE e.ID_PERSONA=@persona_id ORDER BY e.ID_ESTUDIANTE;
+FROM dbo.DIM_ESTUDIANTE AS e
+LEFT JOIN dbo.DIM_EAP AS ep ON ep.ID_EAP=e.ID_EAP
+LEFT JOIN dbo.DIM_FACULTAD AS fa ON fa.ID_FACULTAD=e.ID_FACULTAD
+LEFT JOIN dbo.DIM_CAMPUS AS ca ON ca.ID_CAMPUS=e.ID_CAMPUS
+WHERE e.ID_PERSONA=@persona_id
+ORDER BY e.ID_ESTUDIANTE;
 
 -- 02_estudiante_psg_CASO.csv
 SELECT e.ID_PERSONA AS person_id, e.ID_ESTUDIANTE AS student_id, e.COD_ESTUDIANTE AS student_code,
@@ -58,10 +65,34 @@ ORDER BY t.ID_TRABAJADOR;
 
 -- 02_programacion_docente_CASO.csv: conservar períodos y posibles múltiples campus.
 SELECT p.ID_DOCENTE AS teacher_id, p.ID_PERIODO_ACADEMICO AS period_id, p.ID_CAMPUS AS campus_id,
+       pe.DES_PERIODO_ACADEMICO AS period_name, ca.DES_CAMPUS AS campus_name,
+       mo.DES_MODALIDAD AS modality_name, ep.DES_EAP AS program_name,
        p.ID_MODALIDAD AS modality_id, p.ID_EAP AS program_id, p.TIPO_DOCENTE AS source_teacher_type,
        p.CARGA_LABORAL AS source_workload, p.TIPO_CONTRATO AS source_contract_type,
        p.FEC_ACTUALIZACION AS source_loaded_at
 FROM dbo.FCT_PROGRAMACION_DOCENTE AS p
+LEFT JOIN dbo.DIM_PERIODO AS pe ON pe.ID_PERIODO_ACADEMICO=p.ID_PERIODO_ACADEMICO
+LEFT JOIN dbo.DIM_CAMPUS AS ca ON ca.ID_CAMPUS=p.ID_CAMPUS
+LEFT JOIN dbo.DIM_MODALIDAD AS mo ON mo.ID_MODALIDAD=p.ID_MODALIDAD
+LEFT JOIN dbo.DIM_EAP AS ep ON ep.ID_EAP=p.ID_EAP
 WHERE EXISTS (SELECT 1 FROM dbo.DIM_DOCENTE AS d WHERE d.ID_DOCENTE=p.ID_DOCENTE
        AND (d.ID_PERSONA=@persona_id OR (@documento IS NOT NULL AND LTRIM(RTRIM(d.NUMERO_DOCUMENTO))=@documento)))
 ORDER BY p.ID_PERIODO_ACADEMICO,p.ID_DOCENTE,p.ID_CAMPUS;
+
+-- 02_pertenencia_docente_CASO.csv: facultad y programa declarados por período.
+SELECT p.ID_DOCENTE AS teacher_id,p.ID_PERIODO_ACADEMICO AS period_id,
+       pe.DES_PERIODO_ACADEMICO AS period_name,p.ID_CAMPUS AS campus_id,ca.DES_CAMPUS AS campus_name,
+       p.ID_MODALIDAD AS modality_id,mo.DES_MODALIDAD AS modality_name,
+       p.ID_EAP AS program_id,ep.DES_EAP AS program_name,
+       p.ID_FACULTAD AS faculty_id,fa.DES_FACULTAD AS faculty_name,
+       p.TIPO_DOCENTE AS source_teacher_type,p.CARGA_LABORAL AS source_workload,
+       p.TIPO_CONTRATO AS source_contract_type,p.FEC_ACTUALIZACION AS source_loaded_at
+FROM dbo.FCT_PERTENENCIA_DOCENTE AS p
+LEFT JOIN dbo.DIM_PERIODO AS pe ON pe.ID_PERIODO_ACADEMICO=p.ID_PERIODO_ACADEMICO
+LEFT JOIN dbo.DIM_CAMPUS AS ca ON ca.ID_CAMPUS=p.ID_CAMPUS
+LEFT JOIN dbo.DIM_MODALIDAD AS mo ON mo.ID_MODALIDAD=p.ID_MODALIDAD
+LEFT JOIN dbo.DIM_EAP AS ep ON ep.ID_EAP=p.ID_EAP
+LEFT JOIN dbo.DIM_FACULTAD AS fa ON fa.ID_FACULTAD=p.ID_FACULTAD
+WHERE EXISTS (SELECT 1 FROM dbo.DIM_DOCENTE AS d WHERE d.ID_DOCENTE=p.ID_DOCENTE
+       AND (d.ID_PERSONA=@persona_id OR (@documento IS NOT NULL AND LTRIM(RTRIM(d.NUMERO_DOCUMENTO))=@documento)))
+ORDER BY p.ID_PERIODO_ACADEMICO,p.ID_DOCENTE,p.ID_CAMPUS,p.ID_EAP,p.ID_FACULTAD;

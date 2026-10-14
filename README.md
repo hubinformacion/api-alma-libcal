@@ -109,6 +109,8 @@ El correo utilizado determina qué perfiles consultar: una cuenta de instituto u
 
 `user_type` tendrá Estudiante, Egresado, Docente o Administrativo. Estudiante requiere matrícula vigente y estar cursando el período aplicable; Egresado agrupa egreso, bachiller y titulación, conservando el estado original. La falta de matrícula actual no prueba egreso. Un perfil sin evidencia suficiente quedará pendiente, manteniendo la operación. Estas reglas están acordadas; el enriquecimiento automático sigue pendiente de implementación.
 
+Al exportar, los atributos descriptivos vacíos de perfiles pendientes muestran **Pendiente de revisión**, con `user_match_status = "pending_review"`. Los identificadores verificados permanecen vacíos y se conservan correo/identificador originales. Las cuentas de servicios y los usos internos mantienen sus propias reglas. Esta etiqueta permite continuar con el lote y revisar las excepciones manualmente.
+
 Las cuentas de áreas se incluyen por correo exacto en la lista `service_accounts` de `[reporting]`, dentro de config.toml, por ejemplo `service_accounts = ["area@example.edu", "otra-area@example.edu"]`. Todas se reportan como Administrativo y campus Virtual, con `user_match_status = "configured_service_account"`. La excepción se aplica al exportar/publicar, incluso si la base vincula el correo a una persona: no hereda su nombre ni atributos académicos. Los datos originales se conservan y los usos internos mantienen su tratamiento independiente. No se identifica una cuenta de servicio por palabras de su dirección; debe figurar en esta lista.
 
 Elegiremos la matrícula más reciente aplicable a la fecha de operación, con estados y vigencias confirmados; no simplemente el mayor ID de período o la última carga. Si dos carreras siguen vigentes y no existe un criterio confirmado, se conservará la ambigüedad sin duplicar la operación ni elegir arbitrariamente un perfil. La integración automática todavía no está implementada: este piloto define esas reglas con datos reales.
@@ -162,5 +164,17 @@ Prepara un SQL privado desde el histórico local, sin modificar SQLite:
 Abre `data/referencias/usuarios/lote/08_validar_lote_preparado.sql` en SSMS del equipo institucional. Selecciona la misma base de las pruebas y ejecuta todo el archivo una sola vez. Guarda su única cuadrícula con encabezados como `data/referencias/usuarios/lote/08_validacion_lote.csv` en este proyecto. No ejecutes la plantilla pública `sql/institutional/08_validar_lote.sql`.
 
 El lote agrupa correo/fecha y conserva cuántos registros representa; omite usos internos y cuenta por separado los registros sin correo. No requiere completar DNIs. Reutiliza los métodos de la consulta 07. `matched_identity` indica un único candidato; `ambiguous`, varias personas; `unmatched`, ninguna; `source_without_person`, cuenta encontrada sin vínculo de persona; `invalid_email`, dirección incompleta. `account_scope` distingue institute, university y labor, o queda pendiente/ambiguo. Esta prueba valida identificación y ámbito, no matrícula/rol ni titularidad general. La asignación de atributos y publicación del cruce vendrán después de revisar sus resultados. El SQL preparado contiene correos reales y permanece dentro de `data/`, fuera de Git.
+
+### Extraer los perfiles institucionales del lote revisado
+
+Con `08_validacion_lote_revisada.csv` revisado y guardado bajo `data/referencias/usuarios/lote/`, prepara la segunda etapa:
+
+```bash
+.venv/bin/python scripts/prepare_institutional_profiles.py
+```
+
+Lleva **`data/referencias/usuarios/lote/09_extraer_perfiles_preparado.sql`** al equipo institucional y ejecútalo completo una sola vez en la misma base. Guarda la única cuadrícula con encabezados como **`data/referencias/usuarios/lote/09_perfiles_lote.csv`**. No necesitas instalar Python en ese equipo ni completar parámetros.
+
+Se consultan solo personas con identidad y ámbito definidos: IC para instituto; UC/PSG/EDC para cuenta académica universitaria; empleo/docencia para cuenta laboral. Servicios y excepciones pendientes quedan fuera de esta consulta. Cada fila es evidencia de una fuente: varias filas por cuenta reflejan su historial y no representan nuevas operaciones. Conserva íntegra la columna `profile_data`, en JSON, sin editarla en Excel. Se incluyen estados, fechas y catálogos disponibles; la selección del perfil aplicable y su incorporación a SQLite/Sheets serán posteriores a revisar este CSV.
 
 Las últimas filas de FCT_MATRICULA pueden reflejar egreso o titulación sin una nueva matrícula. No basta con seleccionar el máximo período. Una referencia en DIM_ESTUDIANTE de PSG sin filas de matrícula no prueba matrícula vigente. Estas comprobaciones siguen pendientes de validación antes de automatizar el cruce; no se han enriquecido los reportes con una regla provisional.
