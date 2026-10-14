@@ -114,6 +114,10 @@ Abre los CSV para revisar `user_type`, `user_full_name`, campus y programa. `use
 | `configured_service_account` | Cuenta de área del catálogo local |
 | `not_applicable` | Uso interno de Alma |
 
+Estos estados describen el **cruce de usuarios**, no el estado del préstamo, la reserva o la asistencia. `partial_profile` no invalida los atributos ya identificados; por ejemplo, un estudiante de instituto puede tener rol y programa confirmados, pero campus pendiente. En administrativos, carrera y modalidad también pueden no corresponder a su función; la presentación actual todavía los señala como pendientes, por lo que no todos requieren buscar un dato faltante.
+
+Para un **Docente**, `user_program_name` representa el programa de su programación docente; `user_department_name`, la facultad de su pertenencia docente cuando está disponible y es consistente. No provienen de una matrícula del docente como estudiante. Si existen varias asignaciones, se conservan los atributos comunes y no se elige una carrera arbitrariamente.
+
 Los atributos descriptivos sin evidencia muestran **Pendiente de revisión**. Un nombre completo institucional no se divide por suposición; LibCal conserva además nombres manuales en `source_user_*`. Ninguna excepción elimina ni duplica operaciones.
 
 Después de revisar, publica el histórico enriquecido:
@@ -130,6 +134,15 @@ Después de revisar, publica el histórico enriquecido:
 - Docente precede a Administrativo con evidencia docente vigente; incluye JEFE DE PRACTICA. ES_DOCENTE por sí solo no demuestra vigencia. FECHA_TERMINO no se usa como retiro; se contrasta ingreso y FECHA_RETIRO.
 - Carreras simultáneas conservan los atributos comunes y dejan pendientes los ambiguos. Los códigos laborales no se convierten en campus sin equivalencias confirmadas en `[institutional.labor_campuses]`. En `[institutional.labor_business_units]` están confirmados UCCI → Universidad Continental e IESC → Instituto Continental.
 - Las cuentas de servicios se agregan por correo exacto en `[reporting].service_accounts`. Se reportan como Administrativo y campus Virtual, sin atributos de persona. No cambia el campus de la operación.
+
+### Completar campus y calendarios
+
+Ejecuta **`sql/institutional/10_ubicaciones_y_calendarios.sql`** en SSMS, una sola vez y sin modificar parámetros. Exporta sus dos resultados con encabezados a `data/referencias/usuarios/actual/`:
+
+1. `10_sucursales_laborales.csv`: códigos de institución y sucursal, sin personas.
+2. `10_fuentes_ubicaciones_calendarios.csv`: posibles fuentes de ubicaciones, facultades y fechas de períodos.
+
+La consulta descubre fuentes; no asigna campus ni modifica datos. Si no existe un catálogo accesible, las equivalencias de sucursal deberán confirmarse con la institución. No se usan los códigos de campus de biblioteca como campus del usuario.
 
 ### Preparar otro lote
 
