@@ -81,6 +81,28 @@ class Config:
         return path if path.is_absolute() else self.base / path
 
 
+def service_accounts(value):
+    if isinstance(value, list):
+        items = [(email, {'user_type': 'Administrativo', 'user_campus': 'Virtual'}) for email in value]
+    elif isinstance(value, dict):
+        items = value.items()
+    else:
+        raise ConfigError('reporting.service_accounts debe contener perfiles por correo.')
+    normalized = {}
+    for email, profile in items:
+        if (not isinstance(email, str) or email.count('@') != 1
+                or not all(email.strip().split('@')) or not isinstance(profile, dict)
+                or set(profile) != {'user_type', 'user_campus'}
+                or profile.get('user_type') != 'Administrativo'
+                or not isinstance(profile.get('user_campus'), str) or not profile['user_campus'].strip()):
+            raise ConfigError('Cada cuenta de servicio requiere correo, user_type="Administrativo" y user_campus.')
+        key = email.strip().lower()
+        if key in normalized:
+            raise ConfigError('Hay cuentas de servicio duplicadas al normalizar el correo.')
+        normalized[key] = {'user_type': 'Administrativo', 'user_campus': profile['user_campus'].strip()}
+    return normalized
+
+
 def load_config(path: Path) -> Config:
     try:
         with path.open("rb") as handle:
@@ -108,6 +130,8 @@ def load_config(path: Path) -> Config:
                 raise ConfigError(f'Configura reporting.{name} como pares de código y nombre no vacíos.')
         if any(v not in ('Sí','No','-') for v in reporting.get('attendance_statuses', {}).values()):
             raise ConfigError('reporting.attendance_statuses solo admite Sí, No o - como resultado.')
+        if 'service_accounts' in reporting:
+            reporting['service_accounts'] = service_accounts(reporting['service_accounts'])
         timezone = project.get("timezone", "America/Lima")
         ZoneInfo(timezone)
         start = date.fromisoformat(project.get("start_date", "2026-10-06"))

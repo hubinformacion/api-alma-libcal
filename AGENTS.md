@@ -8,6 +8,8 @@ The institutional database will supply verified user attributes effective on the
 
 The account used determines profile scope: institute accounts use IC only; university academic accounts use UC/PSG/EDC; labor accounts use employment/teaching. Select the applicable recent profile within that scope, never across scopes because the person/document matches. Report user_type is Estudiante (enrolled and studying in the applicable current period), Egresado (includes Bachiller/Titulado), Docente or Administrativo. Missing evidence remains unresolved, not a guessed category.
 
+The reporting.service_accounts email list classifies area accounts as Administrativo with user campus Virtual at export time. They are not natural persons: keep source fields, clear person/academic attributes and mark configured_service_account; never replace the operation/resource campus. Exchange TM identifiers must remain alphanumeric; match the complete local part against COD_DOCUMENTO, not just its digits. Unknown labor-looking emails remain pending until an authoritative source resolves them.
+
 Prioritize current institutional accounts in the pilot; legacy student email aliases are a later exception and must not block development. Preserve original graduation statuses independently of user_type; commercial funnel statuses do not prove academic graduation.
 
 Validate identity discovery with email-only inputs: a known document is a test reference, not proof that the email resolved. Test multiple accounts of one person without assuming one account per document. Missing institutional email/code links require an authoritative account mapping; never fabricate employee usernames or institute aliases.

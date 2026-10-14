@@ -53,9 +53,11 @@ END;
     UNION ALL
     SELECT q.account_context,q.source_email,N'email_document_candidate',N'dbo.DIM_PERSONA',
            p.ID_PERSONA,CONVERT(nvarchar(64),p.COD_DOCUMENTO)
-    FROM @cuentas AS q JOIN dbo.DIM_PERSONA AS p ON LTRIM(RTRIM(p.COD_DOCUMENTO))=q.local_part
+    FROM @cuentas AS q JOIN dbo.DIM_PERSONA AS p ON LOWER(LTRIM(RTRIM(p.COD_DOCUMENTO)))=q.local_part
     WHERE q.email_domain IN (N'continental.edu.pe',N'icontinental.edu.pe')
-      AND LEN(q.local_part)=8 AND q.local_part NOT LIKE N'%[^0-9]%'
+      AND ((LEN(q.local_part)=8 AND q.local_part NOT LIKE N'%[^0-9]%')
+           OR (LEFT(q.local_part,2)=N'tm' AND LEN(q.local_part)>2
+               AND SUBSTRING(q.local_part,3,255) NOT LIKE N'%[^0-9]%'))
     UNION ALL
     SELECT q.account_context,q.source_email,N'email_student_code_candidate',N'dbo.DIM_ESTUDIANTE',
            p.ID_PERSONA,CONVERT(nvarchar(64),p.COD_DOCUMENTO)

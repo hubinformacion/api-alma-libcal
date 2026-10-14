@@ -292,6 +292,14 @@ class Record:
         values.update(site_name=campus_name(self.site), loan_origin_campus_name=campus_name(self.loan_origin_campus))
         if self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y' and not self.user_id:
             values['user_match_status'] = 'not_applicable'
+        service = reporting.get('service_accounts', {}).get(self.source_user_email.strip().lower())
+        if service and not (self.dataset == 'prestamos' and self.in_house_loan_indicator == 'Y'):
+            # A configured area account is not a verified natural person.
+            for name in ('verified_user_id', 'verified_user_email', 'user_full_name', 'user_name',
+                         'user_lastname', 'user_modality', 'user_program', 'user_department', 'user_business_unit'):
+                values[name] = ''
+            values.update(user_type=service['user_type'], user_campus=service['user_campus'],
+                          user_match_status='configured_service_account', report_user_email=self.source_user_email)
         catalog = reporting.get('material_types', {})
         values['material_name'] = catalog.get(self.item_material_type, 'Sin clasificar') if self.item_material_type else ''
         values['material_mapping_status'] = ('mapped' if self.item_material_type in catalog else

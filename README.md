@@ -109,6 +109,8 @@ El correo utilizado determina qué perfiles consultar: una cuenta de instituto u
 
 `user_type` tendrá Estudiante, Egresado, Docente o Administrativo. Estudiante requiere matrícula vigente y estar cursando el período aplicable; Egresado agrupa egreso, bachiller y titulación, conservando el estado original. La falta de matrícula actual no prueba egreso. Un perfil sin evidencia suficiente quedará pendiente, manteniendo la operación. Estas reglas están acordadas; el enriquecimiento automático sigue pendiente de implementación.
 
+Las cuentas de áreas se incluyen por correo exacto en la lista `service_accounts` de `[reporting]`, dentro de config.toml, por ejemplo `service_accounts = ["area@example.edu", "otra-area@example.edu"]`. Todas se reportan como Administrativo y campus Virtual, con `user_match_status = "configured_service_account"`. La excepción se aplica al exportar/publicar, incluso si la base vincula el correo a una persona: no hereda su nombre ni atributos académicos. Los datos originales se conservan y los usos internos mantienen su tratamiento independiente. No se identifica una cuenta de servicio por palabras de su dirección; debe figurar en esta lista.
+
 Elegiremos la matrícula más reciente aplicable a la fecha de operación, con estados y vigencias confirmados; no simplemente el mayor ID de período o la última carga. Si dos carreras siguen vigentes y no existe un criterio confirmado, se conservará la ambigüedad sin duplicar la operación ni elegir arbitrariamente un perfil. La integración automática todavía no está implementada: este piloto define esas reglas con datos reales.
 
 ## Histórico de LibCal y próximos pasos
@@ -146,6 +148,8 @@ El piloto prioriza las cuentas institucionales actuales; las equivalencias de co
 Para comprobar que el cruce funciona cuando Alma/LibCal aportan solo correo, usa `07_validar_cuentas.sql` con un documento de referencia y los correos conocidos de instituto, universidad y trabajo de una misma persona. Ejecútalo una vez. El primer resultado busca candidatos sin usar ese documento como filtro y después compara lo encontrado con la referencia; `unmatched` indica un vínculo pendiente. Los demás resultados muestran identificadores de instituto, evidencia de certificados y fuentes accesibles de cuentas. Exporta las cuatro cuadrículas con los nombres de sus comentarios. Los métodos `candidate` deben validarse antes de automatizarse. Si falta la relación correo/código/persona de instituto o intercambio, necesitaremos una exportación o vista institucional de cuentas; no se deduce desde nombres ni se elimina la operación sin coincidencia.
 
 La consulta 07 incluye como candidato de instituto el código numérico posterior a la i inicial, comparado como texto con ID_ALUMNO. Dos casos del piloto, uno histórico y otro con matrícula actual, coinciden con la persona esperada; esto no demuestra cobertura general. Los dominios admitidos son continental.edu.pe e icontinental.edu.pe. No se eliminan ceros iniciales ni se interpreta la existencia de matrículas históricas como vigencia o egreso. `IC.FCT_EGRESADOSAPTOS` aporta estados y fechas de certificados: los estados y la aptitud deben contrastarse antes de inferir egreso.
+
+Para intercambio, las consultas 07/08 contrastan el prefijo completo TM seguido de dígitos con COD_DOCUMENTO, ignorando diferencias de mayúsculas. Se conserva como identificador institucional alfanumérico, sin convertirlo a DNI numérico; encontrar la identidad no demuestra matrícula vigente.
 
 ### Comprobar los correos reales por lote
 

@@ -268,6 +268,8 @@ token_file = "secrets/google-token.json"
 
 # Catálogos de reportería editables; no dependen de archivos CSV.
 [reporting]
+# Correos de áreas: todos se reportan como Administrativo, campus Virtual.
+service_accounts = []
 sheet_layout = "compact" # full: publicar columnas completas; SQLite conserva todos los datos.
 include_date_parts = true # false: omitir mes/número de mes/hora; conservar fechas y horas originales.
 
@@ -299,3 +301,4 @@ include_date_parts = true # false: omitir mes/número de mes/hora; conservar fec
 "out" = "Sí"
 "-" = "-"
 "no" = "No"
+
