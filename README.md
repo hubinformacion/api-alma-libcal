@@ -145,16 +145,13 @@ El campus laboral se configura en `[institutional.labor_campuses]` mediante clav
 
 Para ampliar las fechas del piloto necesitamos confirmar qué período corresponde a cada fecha, considerando modalidad o programa cuando tengan calendarios distintos. Las fechas de clases, secciones o carga de datos no demuestran por sí solas el inicio y fin de un período institucional completo.
 
-### Investigar fechas de finalización
+### Fechas de finalización y trazabilidad
 
-Para continuar con las fuentes disponibles, copia **`data/referencias/usuarios/lote/12_fechas_fin_preparado.sql`** al equipo institucional y ejecútalo completo una vez en SSMS, sin completar parámetros. Exporta sus dos resultados con encabezados a `data/referencias/usuarios/actual/`:
+La comprobación de las fuentes disponibles mantiene separados fin de estudios, fin de sección y emisión de documentos. En los casos revisados, las fechas UC están respaldadas por `FEC_FIN_ESTUDIO`; Posgrado tiene claves de inicio/fin en 0 y las fuentes consultadas de Continua no exponen un fin académico. Estos faltantes se mantienen identificados mientras se utiliza el perfil respaldado según las reglas anteriores.
 
-1. `12_fechas_programas.csv`: fechas y claves originales; conserva `profile_data` completo.
-2. `12_fuentes_fechas_fin.csv`: otras fuentes candidatas y sus relaciones declaradas.
+Una clave 0 significa no proporcionada; una clave real sin correspondencia significa una relación de fecha pendiente. Los catálogos candidatos no se unen por parecido de códigos. La consulta `sql/institutional/12_fechas_fin_programas.sql` queda disponible para revisar fuentes si cambian la base o los casos. Su versión preparada y sus resultados son privados y diagnósticos: no se importan mediante `import-users`.
 
-Una clave 0 se marca como no proporcionada, distinta de una clave real sin correspondencia. La consulta mantiene separados fin de programa, fin de sección y emisión de documentos; no une fuentes solo porque sus códigos se parezcan. El SQL público está en `sql/institutional/12_fechas_fin_programas.sql`; el preparado contiene casos privados y permanece fuera de Git. Estos resultados son diagnósticos y no se importan mediante `import-users`.
-
-`data/reportes/validacion_academica.csv` resume la selección de los cuatro casos de prueba. Para el lote de operaciones, `usuarios_revision.csv` incluye `selected_academic_date`, `selected_academic_date_basis` y `academic_selection_policy`, que permiten verificar la fecha utilizada. La selección también se conserva en SQLite bajo `academic_selection`, junto con la evidencia original de egreso.
+`data/reportes/validacion_academica.csv` resume los cuatro casos e incluye `comprobacion_fechas` con el contraste de la consulta 12. Para el lote de operaciones, `usuarios_revision.csv` incluye `selected_academic_date`, `selected_academic_date_basis` y `academic_selection_policy`. La selección también se conserva en SQLite bajo `academic_selection`, junto con la evidencia original de egreso.
 
 ### Preparar otro lote
 

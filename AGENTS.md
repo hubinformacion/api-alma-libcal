@@ -26,6 +26,8 @@ Code is in `src/alma_libcal/`; adapters are in `connectors/`. `models.py` define
 
 Academic validation SQL prepared under `data/` with `source_datasets` prefixed `validation:` is diagnostic evidence for known persons, not operations or new email-resolution proof. Never import it as the production profile batch. A PSG program reference without enrollment and EDC emission/start dates do not prove graduation. Confirmed IC graduation certificate status 1 means issued/approved: require a certificate date on/before operation and prioritize later current study. Certificate issuance is not study recency. Other certificate states remain unresolved.
 
+The date-source pilot confirmed UC FEC_FIN_ESTUDIO against the selected dates. The sampled PSG enrollment has start/end keys 0 (not supplied, not a lookup failure); inspected EDC sources expose start/emission but no completion. No declared relationship was returned for candidate date sources. Retain the known-completion fallback and partial reasons; further joins require new evidence, not repeated identical discovery or guessed cross-schema code equivalence.
+
 `README.md` is the sole usage guide. Local `.env` supplies Alma/LibCal secrets, `config.toml` supplies routes, maps and reporting catalogs, and `secrets/` contains Google OAuth JSON. Templates are committed; populated configuration is ignored. Private references under `data/referencias/` are not repository dependencies.
 
 ## Commands and Verification
