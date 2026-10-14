@@ -64,7 +64,10 @@ class ProfileResolutionTests(unittest.TestCase):
         self.evidence['uc_enrollment'] = [self.enrollment]
         self.evidence['edc_profile'] = [dict(source_start_date='2026-09-01',
                                           source_funnel_status='MATRICULADO')]
-        self.assertEqual(self.resolve()['fields']['user_match_status'], 'pending_review')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_program'], 'Carrera A')
 
     def test_institute_is_scoped_and_requires_dated_enrollment(self):
         self.context['account_scope'] = 'institute'
@@ -156,13 +159,18 @@ class ProfileResolutionTests(unittest.TestCase):
         self.evidence['edc_profile'] = [dict(source_start_date='2025-01-01',
             source_emission_date='2025-12-01', source_funnel_status='MATRICULADO')]
         result = self.resolve()
-        self.assertEqual(result['fields']['user_match_status'], 'pending_review')
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], 'Carrera A')
+        self.assertEqual(result['academic_selection']['date'], '2020-12-01')
+        self.assertTrue(result['academic_selection']['later_study_unresolved'])
         self.assertIn('newer_academic_study_requires_validation', result['reasons'])
 
     def test_newer_undated_psg_requires_review_and_future_only_study_does_not(self):
         self.graduate_university()
         self.evidence['psg_enrollment'] = [dict(source_active_status=1, source_status_id=2)]
-        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        self.assertEqual(self.resolve()['fields']['user_type'], 'Egresado')
+        self.assertEqual(self.resolve()['fields']['user_match_status'], 'partial_profile')
         self.evidence['psg_enrollment'][0]['study_start'] = '2027-01-01'
         self.assertEqual(self.resolve()['fields']['user_type'], 'Egresado')
 
@@ -170,7 +178,10 @@ class ProfileResolutionTests(unittest.TestCase):
         self.graduate_university()
         self.evidence['uc_enrollment'].append(dict(self.enrollment, period_name='202510',
             student_id=6, program_id=2, enrollment_date='2025-03-01', source_activity_date='2025-03-01'))
-        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], 'Carrera A')
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
 
     def test_equal_study_dates_do_not_use_titling_dates_to_choose_a_career(self):
         self.graduate_university()
@@ -184,6 +195,32 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(result['fields']['user_type'], 'Egresado')
         self.assertEqual(result['fields']['user_program'], '')
         self.assertEqual(result['fields']['user_campus'], 'Campus A')
+
+    def test_later_completion_wins_over_later_start_in_two_graduated_careers(self):
+        self.graduate_university()
+        first = self.evidence['uc_student'][0]
+        first.update(study_end='2025-12-01', graduation_date='2026-01-01')
+        self.evidence['uc_student'].append(dict(student_id=6, program_id=2,
+            study_start='2022-01-01', study_end='2024-12-01', graduation_date='2025-01-01'))
+        self.evidence['uc_enrollment'].append(dict(self.enrollment, student_id=6, program_id=2,
+            program_name='Carrera B', period_name='202210', enrollment_date='2022-01-01',
+            source_activity_date='2022-01-01'))
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_program'], 'Carrera A')
+        self.assertEqual(result['academic_selection']['date'], '2025-12-01')
+        self.assertEqual(result['academic_selection']['date_basis'], ['study_end'])
+
+    def test_unknown_completion_does_not_displace_known_program_end(self):
+        self.graduate_university()
+        self.evidence['uc_student'].append(dict(student_id=6, program_id=2,
+            study_start='2022-01-01', graduation_date='2026-01-01'))
+        self.evidence['uc_enrollment'].append(dict(self.enrollment, student_id=6, program_id=2,
+            program_name='Carrera B', period_name='202210', enrollment_date='2022-01-01',
+            source_activity_date='2022-01-01'))
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_program'], 'Carrera A')
+        self.assertTrue(result['academic_selection']['other_completion_dates_missing'])
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
 
     def institute_graduate(self):
         self.context['account_scope'] = 'institute'
@@ -207,9 +244,16 @@ class ProfileResolutionTests(unittest.TestCase):
         self.evidence['ic_graduation'][0]['source_graduation_certificate_date'] = '2026-09-01'
         self.evidence['ic_enrollment'].append(dict(program_id=2, student_id=4,
             source_status_id=4, section_start='2025-01-01', section_end='2025-06-01'))
-        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], 'Programa IC')
+        self.assertEqual(result['academic_selection']['date'], '2021-08-01')
+        self.assertTrue(result['academic_selection']['later_study_unresolved'])
         self.evidence['ic_enrollment'] = self.evidence['ic_enrollment'][1:]
-        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['academic_selection']['date'], '')
+        self.assertIn('completion_date_not_available', result['reasons'])
 
     def test_ic_certificate_requires_confirmed_status_and_historical_date(self):
         self.institute_graduate()
@@ -226,7 +270,10 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(self.resolve()['fields']['user_type'], 'Estudiante')
         self.assertEqual(self.resolve()['fields']['user_program'], 'Nuevo IC')
         self.evidence['ic_enrollment'][-1]['section_end'] = '2026-10-01'
-        self.assertEqual(self.resolve()['fields']['user_type'], '')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_program'], 'Programa IC')
+        self.assertIn('institute_newer_study_requires_validation', result['reasons'])
 
     def test_tm_identifier_remains_alphanumeric(self):
         self.evidence['identity'][0]['source_identifier'] = 'TM000123'
@@ -282,6 +329,19 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.run_import()['changed_profiles'], 1)
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM institutional_profile_versions').fetchone()[0], 2)
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0], 1)
+
+    def test_graduation_audit_identifies_completion_date_and_keeps_raw_operations(self):
+        self.rows.append(dict(self.identity, profile_source='uc_student', profile_data=json.dumps(
+            dict(person_id=1, student_id=5, program_id=1, study_end='2020-12-01',
+                 graduation_date='2021-01-01'))))
+        self.run_import()
+        with (self.root / 'reports/usuarios_revision.csv').open(encoding='utf-8-sig', newline='') as handle:
+            row = next(csv.DictReader(handle))
+        self.assertEqual(row['selected_academic_date'], '2020-12-01')
+        self.assertEqual(row['selected_academic_date_basis'], 'study_end')
+        self.assertEqual(row['academic_selection_policy'], 'latest_known_completion')
+        self.assertEqual(self.store.records('prestamos')[0].user_type, '')
+        self.assertEqual(self.run_import()['changed_profiles'], 0)
 
     def test_wrong_person_bad_json_and_cross_scope_reject_entire_batch(self):
         for replacement in (dict(profile_data='{broken'),

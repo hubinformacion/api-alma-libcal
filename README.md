@@ -130,11 +130,11 @@ Después de revisar, publica el histórico enriquecido:
 
 - El correo utilizado delimita el perfil: instituto → IC; universidad → UC/PSG/EDC; trabajo → empleo/docencia. No se trasladan atributos de una cuenta a otra por compartir documento.
 - Para UC, Estudiante requiere el período confirmado, estado académico y matrícula ACTIVO, créditos positivos y fechas aplicables. No se usan períodos futuros. En `[institutional.university_period_by_date]` está confirmado **202620 únicamente para 2026-10-06, 07 y 08**. Para otras fechas se requiere validar el calendario.
-- Egresado requiere evidencia formal anterior a la operación; incluye bachiller/titulado. Para UC se consideran fechas formales y estados fechados EGRESADO/BACHILLER/TITULADO. Un trámite de grado en el período actual no constituye una nueva matrícula. Se prioriza el estudio más reciente por sus fechas académicas, sin usar la fecha de titulación como fecha de un nuevo estudio. Posgrado o Continua antiguos no bloquean un egreso UC más reciente; un estudio posterior sin estado validado queda pendiente.
-- En instituto, certificado de egresado con estado **1 (emitido/aprobado, confirmado)** y fecha válida anterior o igual a la operación permite Egresado. Una matrícula vigente posterior tiene prioridad; un estudio posterior sin prueba de egreso queda pendiente. La fecha de emisión del certificado no se usa para ordenar estudios. Los estados originales y su evidencia se conservan en SQLite.
-- No estar matriculado, una emisión de documento de Continua o un estado comercial no demuestran egreso. Posgrado y Continua todavía requieren validar sus reglas; un código sin descripción de su propio catálogo no se interpreta con el catálogo de otra escuela.
+- Egresado requiere evidencia formal anterior a la operación; incluye bachiller/titulado. Para UC se consideran fechas formales y estados fechados EGRESADO/BACHILLER/TITULADO. Un trámite de grado en el período actual no constituye una nueva matrícula. Entre programas finalizados se prioriza la fecha conocida de fin académico más reciente; cuando falta, se usan fechas de egreso y luego de estudio como referencias explícitas. La titulación y emisión de certificados no ordenan carreras. Si otro estudio posterior sigue sin resolverse, se conserva el perfil respaldado con `partial_profile` y su motivo; el perfil sin respaldo suficiente continúa pendiente.
+- En instituto, certificado de egresado con estado **1 (emitido/aprobado, confirmado)** y fecha válida anterior o igual a la operación permite Egresado. Una matrícula vigente posterior tiene prioridad. Para graduados, el fin de la última sección del mismo programa sirve de referencia con el certificado aprobado; no se presenta como una fecha oficial del programa completo. Si existe otro estudio sin finalización comprobada, el perfil respaldado se conserva como parcial. La fecha de emisión del certificado no se usa para ordenar estudios. Los estados originales y su evidencia se conservan en SQLite.
+- Una fecha de fin por sí sola no demuestra aprobación: el rol Egresado sigue necesitando evidencia académica. No estar matriculado, una emisión de documento de Continua o un estado comercial tampoco demuestran egreso. Posgrado y Continua todavía requieren validar sus reglas; un código sin descripción de su propio catálogo no se interpreta con el catálogo de otra escuela.
 - Docente precede a Administrativo con evidencia docente vigente; incluye JEFE DE PRACTICA. ES_DOCENTE por sí solo no demuestra vigencia. FECHA_TERMINO no se usa como retiro; se contrasta ingreso y FECHA_RETIRO.
-- Carreras simultáneas conservan los atributos comunes y dejan pendientes los ambiguos. Los códigos laborales no se convierten en campus sin equivalencias confirmadas en `[institutional.labor_campuses]`. En `[institutional.labor_business_units]` están confirmados UCCI → Universidad Continental e IESC → Instituto Continental.
+- Las matrículas vigentes tienen prioridad sobre estudios finalizados. Si hay varios perfiles finalizados, se elige la finalización conocida más reciente; los empates conservan atributos comunes y dejan pendientes los ambiguos. Los códigos laborales no se convierten en campus sin equivalencias confirmadas en `[institutional.labor_campuses]`. En `[institutional.labor_business_units]` están confirmados UCCI → Universidad Continental e IESC → Instituto Continental.
 - Las cuentas de servicios se agregan por correo exacto en `[reporting].service_accounts`. Se reportan como Administrativo y campus Virtual, sin atributos de persona. No cambia el campus de la operación.
 
 ### Completar campus y calendarios
@@ -145,16 +145,16 @@ El campus laboral se configura en `[institutional.labor_campuses]` mediante clav
 
 Para ampliar las fechas del piloto necesitamos confirmar qué período corresponde a cada fecha, considerando modalidad o programa cuando tengan calendarios distintos. Las fechas de clases, secciones o carga de datos no demuestran por sí solas el inicio y fin de un período institucional completo.
 
-### Validar egresados, Posgrado y Continua
+### Investigar fechas de finalización
 
-Para los casos de referencia del piloto, copia **`data/referencias/usuarios/lote/11_validar_academicos_preparado.sql`** al equipo institucional. Ejecútalo completo una sola vez en SSMS, en la misma base y sin completar parámetros. Guarda sus dos cuadrículas con encabezados en `data/referencias/usuarios/actual/`:
+Para continuar con las fuentes disponibles, copia **`data/referencias/usuarios/lote/12_fechas_fin_preparado.sql`** al equipo institucional y ejecútalo completo una vez en SSMS, sin completar parámetros. Exporta sus dos resultados con encabezados a `data/referencias/usuarios/actual/`:
 
-1. `11_evidencia_academica.csv`: conserva íntegra la columna JSON `profile_data`.
-2. `11_estados_academicos.csv`: catálogos para contrastar los códigos originales.
+1. `12_fechas_programas.csv`: fechas y claves originales; conserva `profile_data` completo.
+2. `12_fuentes_fechas_fin.csv`: otras fuentes candidatas y sus relaciones declaradas.
 
-El archivo preparado contiene identificadores privados y se mantiene fuera de Git. Reúne consultas existentes de perfiles y el catálogo público `sql/institutional/11_estados_academicos.sql`. Sus filas son evidencia de cuatro casos conocidos, no préstamos/reservas ni prueba de una nueva coincidencia por correo; **no se importan con `import-users`**.
+Una clave 0 se marca como no proporcionada, distinta de una clave real sin correspondencia. La consulta mantiene separados fin de programa, fin de sección y emisión de documentos; no une fuentes solo porque sus códigos se parezcan. El SQL público está en `sql/institutional/12_fechas_fin_programas.sql`; el preparado contiene casos privados y permanece fuera de Git. Estos resultados son diagnósticos y no se importan mediante `import-users`.
 
-Para Posgrado se necesita además un caso con matrícula o egreso conocido: una referencia de programa sin matrícula no basta. Para Continua se debe comprobar vigencia/fin de estudios; inicio o emisión de un documento no equivalen a egreso. En instituto está confirmado que el estado 1 del certificado significa emitido/aprobado. El resumen de los cuatro casos revisados está en `data/reportes/validacion_academica.csv`; no se publica como operaciones en Sheets.
+`data/reportes/validacion_academica.csv` resume la selección de los cuatro casos de prueba. Para el lote de operaciones, `usuarios_revision.csv` incluye `selected_academic_date`, `selected_academic_date_basis` y `academic_selection_policy`, que permiten verificar la fecha utilizada. La selección también se conserva en SQLite bajo `academic_selection`, junto con la evidencia original de egreso.
 
 ### Preparar otro lote
 
