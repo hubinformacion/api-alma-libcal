@@ -114,7 +114,7 @@ Abre los CSV para revisar `user_type`, `user_full_name`, campus y programa. `use
 | `configured_service_account` | Cuenta de área del catálogo local |
 | `not_applicable` | Uso interno de Alma |
 
-Estos estados describen el **cruce de usuarios**, no el estado del préstamo, la reserva o la asistencia. `partial_profile` no invalida los atributos ya identificados; por ejemplo, un estudiante de instituto puede tener rol y programa confirmados, pero campus pendiente. En administrativos, carrera y modalidad también pueden no corresponder a su función; la presentación actual todavía los señala como pendientes, por lo que no todos requieren buscar un dato faltante.
+Estos estados describen el **cruce de usuarios**, no el estado del préstamo, la reserva o la asistencia. `partial_profile` no invalida los atributos ya identificados; por ejemplo, un estudiante de instituto puede tener rol y programa confirmados, pero campus pendiente. En administrativos, **carrera, facultad y modalidad muestran «No aplica»**, incluidas las cuentas de servicios. Esos campos no se cuentan como faltantes. Campus y unidad institucional sí requieren datos confirmados; un administrativo con campus pendiente mantiene `partial_profile`.
 
 Para un **Docente**, `user_program_name` representa el programa de su programación docente; `user_department_name`, la facultad de su pertenencia docente cuando está disponible y es consistente. No provienen de una matrícula del docente como estudiante. Si existen varias asignaciones, se conservan los atributos comunes y no se elige una carrera arbitrariamente.
 
@@ -137,12 +137,11 @@ Después de revisar, publica el histórico enriquecido:
 
 ### Completar campus y calendarios
 
-Ejecuta **`sql/institutional/10_ubicaciones_y_calendarios.sql`** en SSMS, una sola vez y sin modificar parámetros. Exporta sus dos resultados con encabezados a `data/referencias/usuarios/actual/`:
+El campus laboral se configura en `[institutional.labor_campuses]` mediante claves `division:sucursal`. La institución debe confirmar el nombre correspondiente; no se equiparan automáticamente esos códigos con `dbo.DIM_CAMPUS` ni con el campus de una reserva/préstamo.
 
-1. `10_sucursales_laborales.csv`: códigos de institución y sucursal, sin personas.
-2. `10_fuentes_ubicaciones_calendarios.csv`: posibles fuentes de ubicaciones, facultades y fechas de períodos.
+`sql/institutional/10_ubicaciones_y_calendarios.sql` permite investigar sucursales y posibles fuentes de ubicaciones/calendarios. Se ejecuta una sola vez por revisión de fuentes, sin parámetros, y sus dos resultados se exportan con encabezados a `data/referencias/usuarios/actual/`. Los códigos de sucursal sin nombres no bastan para asignar un campus.
 
-La consulta descubre fuentes; no asigna campus ni modifica datos. Si no existe un catálogo accesible, las equivalencias de sucursal deberán confirmarse con la institución. No se usan los códigos de campus de biblioteca como campus del usuario.
+Para ampliar las fechas del piloto necesitamos confirmar qué período corresponde a cada fecha, considerando modalidad o programa cuando tengan calendarios distintos. Las fechas de clases, secciones o carga de datos no demuestran por sí solas el inicio y fin de un período institucional completo.
 
 ### Preparar otro lote
 

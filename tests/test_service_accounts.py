@@ -26,9 +26,10 @@ class ServiceAccountTests(unittest.TestCase):
         self.assertEqual(row['user_match_status'], 'configured_service_account')
         self.assertEqual(row['source_user_id'], 'source-account')
         self.assertEqual(row['source_user_first_name'], 'Source name')
-        for field in ['user_id', 'user_full_name', 'user_first_name', 'user_program_name',
-                      'user_department_name', 'user_business_unit_name', 'user_modality']:
+        for field in ['user_id', 'user_full_name', 'user_first_name', 'user_business_unit_name']:
             self.assertEqual(row[field], '')
+        for field in ['user_program_name', 'user_department_name', 'user_modality']:
+            self.assertEqual(row[field], 'No aplica')
         self.assertEqual(asdict(record), original)
 
     def test_exceptions_do_not_classify_other_accounts_or_internal_loans(self):

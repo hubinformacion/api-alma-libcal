@@ -8,7 +8,7 @@ from pathlib import Path
 
 from alma_libcal.errors import PilotError
 from alma_libcal.institutional import import_users, resolve_profile
-from alma_libcal.models import Batch, Interval, Record
+from alma_libcal.models import Batch, Interval, Record, report_headers
 from alma_libcal.storage import Store
 
 
@@ -93,6 +93,36 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(self.resolve()['fields']['user_business_unit'], 'Universidad Continental')
         self.evidence['employment'][0]['employment_withdrawal'] = '2025-01-01'
         self.assertEqual(self.resolve()['fields']['user_type'], '')
+
+    def test_admin_academic_fields_do_not_count_as_missing_but_campus_does(self):
+        self.context['account_scope'] = 'labor'
+        self.evidence['employment'] = [dict(work_email=self.context['source_email'],
+            employment_start='2023-01-01', source_teacher_flag=0,
+            source_division='UCCI', source_branch='104')]
+        self.settings['labor_business_units'] = {'UCCI': 'Universidad Continental'}
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['reasons'], ['missing_or_ambiguous_user_campus'])
+        for field in ['user_program', 'user_department', 'user_modality']:
+            self.assertEqual(result['fields'][field], 'No aplica')
+        self.settings['labor_campuses'] = {'UCCI:104': 'Campus de prueba'}
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_match_status'], 'matched_profile')
+        self.assertEqual(result['reasons'], [])
+
+    def test_report_admin_rule_preserves_campus_and_source_data(self):
+        for role in ['Administrativo', 'Docente', 'Estudiante', '']:
+            record = Record('reservas', 'B1', '2026-10-06', user_type=role,
+                user_match_status='partial_profile', user_program='Programa',
+                user_department='Facultad', user_modality='Modalidad', user_campus='Campus',
+                site='Campus Cusco')
+            row = dict(zip(report_headers('reservas'), record.report_values()))
+            self.assertEqual(row['user_program_name'], 'No aplica' if role == 'Administrativo' else 'Programa')
+            self.assertEqual(row['user_department_name'], 'No aplica' if role == 'Administrativo' else 'Facultad')
+            self.assertEqual(row['user_modality'], 'No aplica' if role == 'Administrativo' else 'Modalidad')
+            self.assertEqual(row['user_campus_name'], 'Campus')
+            self.assertEqual(row['booking_campus_name'], 'Cusco')
+            self.assertEqual(record.user_program, 'Programa')
 
     def test_formal_graduation_is_required_for_egresado(self):
         self.evidence['uc_student'] = [dict(source_status='ESTUDIANTES')]

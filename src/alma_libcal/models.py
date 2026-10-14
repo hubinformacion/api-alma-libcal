@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from .errors import SourceError
 
 DATASETS = ("prestamos", "renovaciones", "reservas")
+ADMIN_NOT_APPLICABLE_FIELDS = ("user_modality", "user_program", "user_department")
 HEADERS = (
     "record_id", "activity_date", "user_id", "resource_id", "resource_name", "site",
     "status", "category", "starts_at", "ends_at", "check_in", "check_out", "quantity",
@@ -300,6 +301,9 @@ class Record:
                 values[name] = ''
             values.update(user_type=service['user_type'], user_campus=service['user_campus'],
                           user_match_status='configured_service_account', report_user_email=self.source_user_email)
+        if values['user_type'] == 'Administrativo' and values['user_match_status'] != 'not_applicable':
+            for name in ADMIN_NOT_APPLICABLE_FIELDS:
+                values[name] = 'No aplica'
         if values['user_match_status'] in ('pending', 'unmatched', 'ambiguous', 'scope_pending', 'pending_review'):
             values['user_match_status'] = 'pending_review'
         if values['user_match_status'] not in ('not_applicable', 'configured_service_account'):

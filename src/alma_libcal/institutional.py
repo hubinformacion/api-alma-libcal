@@ -10,6 +10,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from .errors import PilotError
+from .models import ADMIN_NOT_APPLICABLE_FIELDS
 
 PENDING = 'Pendiente de revisión'
 USER_FIELDS = ('verified_user_id', 'verified_user_email', 'user_full_name', 'user_name',
@@ -202,6 +203,8 @@ def resolve_profile(context, evidence, settings):
             mapped = {settings.get('labor_campuses', {}).get(k, '') for k in keys}
             if len(mapped) == 1:
                 profile['user_campus'] = mapped.pop()
+    if profile['user_type'] == 'Administrativo':
+        profile.update({field: 'No aplica' for field in ADMIN_NOT_APPLICABLE_FIELDS})
     if not identifier or not full_name:
         raise PilotError('La evidencia de identidad está incompleta o es ambigua; no se importó el lote.')
     if not profile['user_type']:
