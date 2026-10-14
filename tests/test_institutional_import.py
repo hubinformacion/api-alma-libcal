@@ -135,6 +135,27 @@ class ProfileResolutionTests(unittest.TestCase):
         self.evidence['uc_student'][0]['graduation_date'] = '2027-01-01'
         self.assertEqual(self.resolve()['fields']['user_type'], '')
 
+    def test_study_end_does_not_backdate_egresado_before_formal_graduation(self):
+        self.context['activity_date'] = '2020-12-15'
+        self.settings['university_period_by_date'] = {'2020-12-15': '202020', '2021-01-02': '202110'}
+        self.evidence['uc_student'] = [dict(student_id=5, program_id=1,
+            study_end='2020-12-01', graduation_date='2021-01-01',
+            title_date='2024-07-01', source_status='TITULADO')]
+        self.evidence['uc_enrollment'] = [dict(self.enrollment, period_name='202010',
+            enrollment_date='2020-03-08', source_activity_date='2020-03-08'),
+            dict(self.enrollment, period_name='202020', enrollment_date=None,
+                 source_activity_date='2020-12-01', source_status_name='ESTUDIOS CONCLUIDOS',
+                 enrollment_status_name='ESTUDIOS CONCLUIDOS', enrolled_credits=None)]
+        before = self.resolve()
+        self.assertEqual(before['fields']['user_type'], '')
+        self.assertEqual(before['fields']['user_match_status'], 'pending_review')
+        self.context['activity_date'] = '2021-01-02'
+        after = self.resolve()
+        self.assertEqual(after['fields']['user_type'], 'Egresado')
+        self.assertEqual(after['academic_selection']['date'], '2020-12-01')
+        self.assertTrue(all(p['status_date'] == '2021-01-01' for p in after['academic_evidence']))
+        self.assertEqual(self.evidence['uc_enrollment'][0]['enrollment_date'], '2020-03-08')
+
     def graduate_university(self):
         self.evidence['uc_student'] = [dict(student_id=5, program_id=1,
             study_start='2020-03-01', study_end='2020-12-01', graduation_date='2021-01-01')]

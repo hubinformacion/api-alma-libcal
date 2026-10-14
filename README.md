@@ -145,9 +145,9 @@ El campus laboral se configura en `[institutional.labor_campuses]` mediante clav
 
 Para ampliar las fechas del piloto necesitamos confirmar qué período corresponde a cada fecha, considerando modalidad o programa cuando tengan calendarios distintos. Las fechas de clases, secciones o carga de datos no demuestran por sí solas el inicio y fin de un período institucional completo.
 
-### Fechas de finalización y trazabilidad
+### Fechas académicas y trazabilidad
 
-La comprobación de las fuentes disponibles mantiene separados fin de estudios, fin de sección y emisión de documentos. En los casos revisados, las fechas UC están respaldadas por `FEC_FIN_ESTUDIO`; Posgrado tiene claves de inicio/fin en 0 y las fuentes consultadas de Continua no exponen un fin académico. Estos faltantes se mantienen identificados mientras se utiliza el perfil respaldado según las reglas anteriores.
+La comprobación de las fuentes disponibles mantiene separados fin de estudios, fin de sección y emisión de documentos. La fecha usada para ordenar perfiles no es necesariamente la de egreso. En UC, `study_end` conserva el valor de `DIM_ESTUDIANTE.FEC_FIN_ESTUDIO`; haber comprobado ese valor no confirma que su definición institucional equivalga a egreso ni a última matrícula. `graduation_date` procede de `FEC_EGRESO`, mientras que `enrollment_date` procede de `FCT_MATRICULA.ID_FECHA_MATRICULA` resuelto con `DIM_TIEMPO`. Se conservan separados y el rol Egresado exige evidencia fechada de egreso/grado. En los casos revisados, Posgrado tiene claves de inicio/fin en 0 y las fuentes consultadas de Continua no exponen un fin académico. Estos faltantes se mantienen identificados mientras se utiliza el perfil respaldado según las reglas anteriores.
 
 Una clave 0 significa no proporcionada; una clave real sin correspondencia significa una relación de fecha pendiente. Los catálogos candidatos no se unen por parecido de códigos. La consulta `sql/institutional/12_fechas_fin_programas.sql` queda disponible para revisar fuentes si cambian la base o los casos. Su versión preparada y sus resultados son privados y diagnósticos: no se importan mediante `import-users`.
 

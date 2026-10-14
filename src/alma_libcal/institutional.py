@@ -98,6 +98,11 @@ def same_career(left, right):
 
 
 def university_graduation(evidence, operation):
+    """Keep dated graduation proof separate from the date used to rank supported profiles.
+
+    study_end is the original FEC_FIN_ESTUDIO value, not FEC_EGRESO or a
+    reconstructed enrollment date. Its label does not independently prove graduation.
+    """
     proofs = []
     for row in evidence['uc_student']:
         valid = [(key, day(row.get(key))) for key in ('graduation_date', 'bachelor_date', 'title_date')
