@@ -93,7 +93,36 @@ class Store:
             if name not in columns:
                 self.db.execute(f'ALTER TABLE records ADD COLUMN {name} {definition}')
         with self.db:
+            self.migrate_booking_keys()
             self.db.execute("UPDATE runs SET status='interrupted',finished_at=?,error='Ejecución anterior interrumpida.' WHERE status='running'", (now(),))
+
+    def migrate_booking_keys(self):
+        """Rekey legacy bookings without losing their original version payloads."""
+        changed = False
+        for row in self.db.execute("SELECT * FROM records WHERE dataset='reservas'").fetchall():
+            payload = json.loads(row['payload'])
+            if payload.get('source_booking_id') or not payload.get('source_booking_row_id'):
+                continue
+            old_key = row['record_id']
+            new_key = f"{old_key}:{payload['source_booking_row_id']}"
+            if self.db.execute("SELECT 1 FROM records WHERE dataset='reservas' AND record_id=?", (new_key,)).fetchone():
+                raise PilotError('Hay claves de LibCal en conflicto; conserva el histórico y revisa la migración.')
+            observed_at = now()
+            version = row['record_version']
+            if not version:
+                version = 1
+                self.save_version('reservas', old_key, version, row['payload'], observed_at, 'baseline')
+            self.db.execute("UPDATE record_versions SET record_id=? WHERE dataset='reservas' AND record_id=?",
+                            (new_key, old_key))
+            payload.update(record_id=new_key, source_booking_id=old_key)
+            current = json.dumps(asdict(Record(**payload)), ensure_ascii=False, sort_keys=True)
+            self.save_version('reservas', new_key, version + 1, current, observed_at, 'key_migration')
+            self.db.execute("UPDATE records SET record_id=?,payload=?,record_version=?,record_changed_at=? "
+                            "WHERE dataset='reservas' AND record_id=?",
+                            (new_key, current, version + 1, observed_at, old_key))
+            changed = True
+        if changed:
+            self.db.execute("UPDATE snapshots SET revision=revision+1 WHERE dataset='reservas'")
 
     def close(self):
         self.db.close()

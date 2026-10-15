@@ -78,6 +78,35 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.records("prestamos")[0].status, "Complete")
         self.assertEqual(self.store.records("prestamos")[0].user_id, "000123")
 
+    def test_legacy_booking_key_migration_preserves_audit_and_is_idempotent(self):
+        record = Record('reservas', 'GROUP', '2026-10-06', source_booking_row_id='71')
+        self.save(record)
+        original = json.loads(self.store.db.execute("SELECT payload FROM records WHERE dataset='reservas'").fetchone()[0])
+        original.pop('source_booking_id')
+        original_json = json.dumps(original, ensure_ascii=False, sort_keys=True)
+        import hashlib
+        with self.store.db:
+            self.store.db.execute("UPDATE records SET payload=? WHERE dataset='reservas'", (original_json,))
+            self.store.db.execute("UPDATE record_versions SET payload=?,payload_hash=? WHERE dataset='reservas'",
+                                  (original_json, hashlib.sha256(original_json.encode()).hexdigest()))
+        self.store.close()
+        self.store = Store(self.directory / 'pilot.sqlite3')
+        self.addCleanup(self.store.close)
+        self.assertEqual(self.store.count('reservas'), 1)
+        migrated = self.store.records('reservas')[0]
+        self.assertEqual(migrated.record_id, 'GROUP:71')
+        self.assertEqual(migrated.source_booking_id, 'GROUP')
+        versions = self.store.db.execute("SELECT payload,observation_type FROM record_versions ORDER BY version").fetchall()
+        self.assertEqual(versions[0]['payload'], original_json)
+        self.assertEqual(versions[1]['observation_type'], 'key_migration')
+        self.assertEqual(dict(zip(*self.store.table('reservas')))['booking_id'], 'GROUP')
+        self.save(migrated)
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0], 2)
+        self.store.close()
+        self.store = Store(self.directory / 'pilot.sqlite3')
+        self.addCleanup(self.store.close)
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0], 2)
+
     def test_audit_versions_only_change_with_content_and_preserve_revisited_states(self):
         self.save(self.record)
         first=self.store.db.execute('SELECT record_version,record_changed_at FROM records').fetchone()

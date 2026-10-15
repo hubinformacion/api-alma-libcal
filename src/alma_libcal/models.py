@@ -55,7 +55,7 @@ RENEWAL_FIELDS = {
     "renewal_month_name": "report_month", "renewal_month_number": "report_month_number",
 }
 RESERVATION_FIELDS = {
-    **TRACE_FIELDS, "booking_id": "record_id", "source_booking_row_id": "source_booking_row_id", **USER_FIELDS,
+    **TRACE_FIELDS, "booking_id": "source_booking_id", "source_booking_row_id": "source_booking_row_id", **USER_FIELDS,
     "booking_month_name": "report_month", "booking_month_number": "report_month_number",
     "booking_account_email": "booking_account_email", "booking_resource_name": "resource_name",
     "booking_category_code": "booking_category_code", "booking_category_name": "category",
@@ -266,10 +266,13 @@ class Record:
     booking_phone: str = ""
     booking_terms_accepted: str = ""
     source_booking_row_id: str = ""
+    source_booking_id: str = ""
     booking_category_code: str = ""
     source_booking_category_name: str = ""
 
     def __post_init__(self):
+        if self.dataset == 'reservas' and not self.source_booking_id:
+            object.__setattr__(self, 'source_booking_id', self.record_id)
         if self.dataset not in DATASETS or not self.record_id:
             raise SourceError("Identificador de registro o conjunto inválido.")
         try:

@@ -201,8 +201,11 @@ class LibCalConnector:
         user_id = mapped(row, fields, 'user_id')
         if not user_id and self.config.raw.get('libcal', {}).get('user_id_from_email', False):
             user_id = email_identifier(email)
+        booking_id = mapped(row, fields, 'booking_id', required=True)
+        row_id = mapped(row, fields, 'source_booking_row_id', required=bool(fields.get('source_booking_row_id')))
         return Record(
-            dataset="reservas", record_id=mapped(row, fields, "booking_id", required=True),
+            dataset="reservas", record_id=f'{booking_id}:{row_id}' if row_id else booking_id,
+            source_booking_id=booking_id,
             activity_date=local_date(starts_at, timezone), user_id=user_id,
             resource_id=mapped(row, fields, "resource_id", required=True),
             resource_name=mapped(row, fields, "resource_name"), site=mapped(row, fields, "site"),
@@ -216,7 +219,7 @@ class LibCalConnector:
             booking_check_in_status=mapped(row, fields, 'booking_check_in_status'),
             booking_phone=mapped(row, fields, 'booking_phone'),
             booking_terms_accepted=mapped(row, fields, 'booking_terms_accepted'),
-            source_booking_row_id=mapped(row, fields, 'source_booking_row_id'),
+            source_booking_row_id=row_id,
             booking_category_code=category['id'],
             source_booking_category_name=mapped(row, fields, 'source_booking_category_name'),
             source_user_name=mapped(row, fields, 'source_user_name'),

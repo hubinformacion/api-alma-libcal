@@ -260,6 +260,34 @@ class ConnectorTests(unittest.TestCase):
         with self.assertRaises(SourceError):
             LibCalConnector(self.config, http).fetch(self.interval)
 
+    def test_libcal_shared_booking_code_retains_each_position_and_updates_stably(self):
+        settings = self.config.raw['libcal']
+        settings['fields']['source_booking_row_id'] = 'id'
+        settings['fields']['seat_id'] = 'seat_id'
+        first = {**json.loads(fixture('libcal_bookings.json'))[0], 'id': 71, 'seat_id': 1}
+        second = {**first, 'id': 72, 'seat_id': 2}
+        http = QueueHTTP([{'access_token': 'test'}, [first, second], [], [], []])
+        connector = LibCalConnector(self.config, http)
+        batch = connector.fetch(self.interval)
+        self.assertEqual({r.record_id for r in batch.records}, {'BOOK-001:71', 'BOOK-001:72'})
+        self.assertEqual({r.source_booking_id for r in batch.records}, {'BOOK-001'})
+        changed = connector.normalize({**second, 'status': 'Cancelled'}, settings['fields'], settings['categories'][0])
+        self.assertEqual(changed.record_id, 'BOOK-001:72')
+
+    def test_libcal_same_position_with_conflicting_status_still_fails(self):
+        self.config.raw['libcal']['fields']['source_booking_row_id'] = 'id'
+        first = {**json.loads(fixture('libcal_bookings.json'))[0], 'id': 71}
+        http = QueueHTTP([{'access_token': 'test'}, [first, {**first, 'status': 'Cancelled'}]])
+        with self.assertRaisesRegex(SourceError, 'contradictorias'):
+            LibCalConnector(self.config, http).fetch(self.interval)
+
+    def test_libcal_configured_position_id_cannot_be_missing(self):
+        self.config.raw['libcal']['fields']['source_booking_row_id'] = 'id'
+        first = json.loads(fixture('libcal_bookings.json'))[0]
+        with self.assertRaises(SourceError):
+            LibCalConnector(self.config, QueueHTTP([])).normalize(
+                first, self.config.raw['libcal']['fields'], self.config.raw['libcal']['categories'][0])
+
     def test_libcal_repeated_page_is_not_silently_complete(self):
         first = json.loads(fixture("libcal_bookings.json"))[0]
         http = QueueHTTP([{"access_token": "test"}, [first], [first]])
