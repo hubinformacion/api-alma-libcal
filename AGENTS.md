@@ -48,6 +48,10 @@ Use four-space indentation and descriptive `snake_case`. Mock external systems; 
 
 Loans use the source loan ID. Renewal keys identify loan/date/renewal-campus aggregates: sum `renewal_quantity`, never interpret row count as event count. Keep original campuses and fallback provenance. LibCal retains bookId plus additional source IDs; attendance is independent of cancellation. Unrecorded attendance is excluded from its numeric indicator.
 
+LibCal bookId can group multiple seats/rows: record_id combines bookId:id when the source row ID is mapped; source_booking_id retains bookId and booking_id exports that original code. Keep same-key contradictions fatal. Legacy keys migrate transactionally, preserving original version payloads and marking key_migration; repeated initialization is idempotent. Distinguish distinct booking codes from booked positions and resource-hours.
+
+Confirmed service hours are 07:00–21:00 America/Lima; a proposed LibCal closing capture is 21:30 the same day, before midnight. Later edits remain possible and updates ingestion is not implemented. Alma D−2 is an initial operating margin, not a completeness guarantee: manually compare Data Updated As Of against the requested day's closing time in the same timezone. Data Available As Of is load completion, not the source cutoff. Current source watermark columns are unmapped. Academic periods affect enrichment only, never extraction coverage; new dates remain unconfirmed.
+
 Preserve raw material codes and question IDs. Catalogs live in TOML; derive date parts when exporting. Preserve changed payloads in `record_versions`; identical extractions must not create extra versions.
 
 Sheets projects compact columns; full data remains in SQLite. Publication replaces selected tabs atomically and rejects oversized requests; it is not incremental. LibCal's listing endpoint ignores past dates; recent updates cover only 24 hours. Do not claim complete historical coverage from either.

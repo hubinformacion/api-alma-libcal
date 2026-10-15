@@ -23,6 +23,8 @@ No necesitas activar `.venv`. `.env` contiene claves de Alma y LibCal; `config.t
 
 Cambia las fechas según el período. `--extract-only` guarda sin publicar. Préstamos se seleccionan por Loan Date y renovaciones por Renewal Date. Las renovaciones automáticas no forman parte del conteo fechado de este análisis.
 
+**Cuándo considerar cerrado un día:** comprueba en Alma Analytics «Datos actualizados a partir del» (corte de extracción de Alma), no solo «Datos disponibles a partir del» (fin de la carga a Analytics). Con corte del 13/10/2026 a las 19:05 y atención hasta las 21:00, el día 13 todavía no está completo; para la prueba del 14 se extrae el **12 de octubre**. Usar D−2 es un margen operativo inicial, no una garantía ante retrasos del origen. Las horas deben compararse en la misma zona horaria. Los reportes actuales no incorporan esos indicadores de actualización: la comprobación sigue siendo manual. [Referencia oficial de Ex Libris](https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_%28English%29/080Analytics/010Introduction/Analytics_Database_Refresh).
+
 ### LibCal: reservas del día actual
 
 ```bash
@@ -30,6 +32,8 @@ Cambia las fechas según el período. `--extract-only` guarda sin publicar. Pré
 ```
 
 **Sustituye ambas fechas por hoy** cuando ejecutes el comando otro día. El endpoint de listado usado no permite fechas pasadas. Se consultan las categorías configuradas de los seis campus, incluidas canceladas.
+
+Horario de atención confirmado: **07:00–21:00, America/Lima**. La captura de cierre se propone a las **21:30 del mismo día, antes de medianoche**. Esto deja margen tras la atención, pero no impide correcciones posteriores de asistencia o cancelación. La recuperación de cambios recientes aún no está implementada; no se considera un cierre definitivo e inmutable ni se filtran registros por esas horas.
 
 ### Publicar el histórico guardado
 
@@ -84,6 +88,7 @@ La lista reemplaza la selección de ese conjunto. Los nombres deben existir, ser
 - **Renovaciones:** suma `renewal_quantity`. Su `record_id` identifica préstamo/día/campus, no un evento individual. `report_campus_source` distingue campus de renovación y referencia del préstamo original.
 - **Asistencia:** independiente del estado de reserva. Sí → 1; No explícito → 0; sin registro → vacío en el indicador. Un estado desconocido tampoco se interpreta como ausencia. Equivalencias editables en `[reporting.attendance_statuses]`.
 - **Duración:** horas decimales exactas entre inicio y fin, incluso al cruzar medianoche; corresponde a tiempo reservado, no necesariamente a uso efectivo.
+- **Clave de LibCal:** `booking_id` conserva el `bookId` original, que puede agrupar varias posiciones. Con el mapeo `source_booking_row_id = "id"`, `record_id` combina `bookId:id` y distingue cada registro. Cuenta códigos distintos para reservas agrupadas; filas para posiciones/tramos; la suma de duración corresponde a horas de recurso reservado. Los tres registros previos del piloto se migran conservando sus versiones originales y sin duplicar operaciones. Si el ID configurado falta o una misma clave trae versiones contradictorias, la extracción se detiene.
 - **Formularios:** se extraen respuestas por ID: celular, correos de integrantes y términos. No se exportan los textos de preguntas.
 - **Usuarios:** claves originales y nombres manuales se conservan como `source_user_*`. El correo puede aportar una clave candidata anterior a @. Los atributos verificados provienen del cruce institucional a la fecha de operación; los usos internos sin usuario no requieren ese cruce.
 - **Meses y horas:** se calculan al exportar, sin duplicarlos en SQLite. Para omitir esas columnas en Sheets y utilizar un calendario de Power BI, cambia `[reporting].include_date_parts = false`.
@@ -130,6 +135,7 @@ Después de revisar, publica el histórico enriquecido:
 
 - El correo utilizado delimita el perfil: instituto → IC; universidad → UC/PSG/EDC; trabajo → empleo/docencia. No se trasladan atributos de una cuenta a otra por compartir documento.
 - Para UC, Estudiante requiere el período confirmado, estado académico y matrícula ACTIVO, créditos positivos y fechas aplicables. No se usan períodos futuros. En `[institutional.university_period_by_date]` está confirmado **202620 únicamente para 2026-10-06, 07 y 08**. Para otras fechas se requiere validar el calendario.
+- El período académico **no filtra la extracción de operaciones**. Se usa después para comprobar si una matrícula estaba vigente en la fecha de uso. Todas las operaciones se conservan aunque no exista un período confirmado o un perfil resoluble; no se reutiliza por suposición el perfil de otra fecha.
 - Egresado requiere evidencia formal anterior a la operación; incluye bachiller/titulado. Para UC se consideran fechas formales y estados fechados EGRESADO/BACHILLER/TITULADO. Un trámite de grado en el período actual no constituye una nueva matrícula. Entre programas finalizados se prioriza la fecha conocida de fin académico más reciente; cuando falta, se usan fechas de egreso y luego de estudio como referencias explícitas. La titulación y emisión de certificados no ordenan carreras. Si otro estudio posterior sigue sin resolverse, se conserva el perfil respaldado con `partial_profile` y su motivo; el perfil sin respaldo suficiente continúa pendiente.
 - En instituto, certificado de egresado con estado **1 (emitido/aprobado, confirmado)** y fecha válida anterior o igual a la operación permite Egresado. Una matrícula vigente posterior tiene prioridad. Para graduados, el fin de la última sección del mismo programa sirve de referencia con el certificado aprobado; no se presenta como una fecha oficial del programa completo. Si existe otro estudio sin finalización comprobada, el perfil respaldado se conserva como parcial. La fecha de emisión del certificado no se usa para ordenar estudios. Los estados originales y su evidencia se conservan en SQLite.
 - Una fecha de fin por sí sola no demuestra aprobación: el rol Egresado sigue necesitando evidencia académica. No estar matriculado, una emisión de documento de Continua o un estado comercial tampoco demuestran egreso. Posgrado y Continua todavía requieren validar sus reglas; un código sin descripción de su propio catálogo no se interpreta con el catálogo de otra escuela.
@@ -155,12 +161,51 @@ Una clave 0 significa no proporcionada; una clave real sin correspondencia signi
 
 ### Preparar otro lote
 
-1. Extrae las operaciones necesarias con `sync --extract-only`.
-2. Ejecuta `.venv/bin/python scripts/prepare_institutional_check.py`. Lleva el SQL preparado bajo `data/referencias/usuarios/lote/` a SSMS, ejecútalo completo y exporta con encabezados. Revisa identidades y ámbitos antes de preparar perfiles.
-3. Con `08_validacion_lote_revisada.csv` actualizado, ejecuta `.venv/bin/python scripts/prepare_institutional_profiles.py`. En SSMS ejecuta `09_extraer_perfiles_preparado.sql` y guarda `09_perfiles_lote.csv` con encabezados.
-4. Importa indicando las rutas reales y revisa los CSV antes de publicar. Si cambian las operaciones del lote, la validación exige prepararlo nuevamente.
+Este es el recorrido de la prueba del **14/10/2026**. Cambia las fechas y la carpeta para otro lote. Los dos comandos `sync` ya se ejecutaron; no necesitas repetirlos para continuar con SSMS.
+
+**1. En el equipo de desarrollo: extraer y preparar los correos.** Ejecuta los comandos uno después de otro, no simultáneamente:
+
+```bash
+.venv/bin/python -m alma_libcal sync --only prestamos renovaciones --from 2026-10-12 --to 2026-10-12 --extract-only
+.venv/bin/python -m alma_libcal sync --only reservas --from 2026-10-14 --to 2026-10-14 --extract-only
+.venv/bin/python scripts/prepare_institutional_check.py --output data/referencias/usuarios/prueba_2026-10-14/08_validar_lote_preparado.sql
+```
+
+Las operaciones quedan en `data/pilot.sqlite3`. El SQL preparado contiene los correos y fechas: no tienes que introducir DNI ni repetir la consulta por usuario. Incluye todo el histórico guardado, porque el importador actual valida el lote completo.
+
+**2. En el equipo institucional con VPN: comprobar identidades.** Copia únicamente `08_validar_lote_preparado.sql` a una carpeta local, por ejemplo `Documentos\alma-libcal\`. Abre SSMS, conéctate como habitualmente mediante Windows y selecciona la misma base de datos usada en las pruebas anteriores. Abre el archivo preparado y ejecútalo completo una vez. Guarda la única cuadrícula como `08_validacion_lote.csv`, con encabezados. En SSMS, habilita «Incluir encabezados de columna al copiar o guardar resultados» en Herramientas → Opciones → Resultados de consultas → SQL Server → Resultados a cuadrícula; abre otra consulta si la opción no se aplica a la actual. Comprueba que la primera línea incluye `request_id` y `source_email`.
+
+**3. De vuelta en desarrollo: revisar el resultado 08.** Guarda ese CSV en `data/referencias/usuarios/prueba_2026-10-14/`. Este es el siguiente archivo que debes entregar durante el piloto. Tras revisar identidad y ámbito, se genera `08_validacion_lote_revisada.csv`: conserva las columnas originales y añade `review_status`. `ready_for_profile` se reserva para identidad única y ámbito respaldado; las cuentas de servicios y excepciones quedan identificadas para revisión, sin inventar personas. No copies el archivo revisado del lote antiguo: las solicitudes y sus IDs pueden haber cambiado.
+
+**4. En desarrollo: preparar los perfiles, después de revisar 08.**
+
+```bash
+.venv/bin/python scripts/prepare_institutional_profiles.py --review data/referencias/usuarios/prueba_2026-10-14/08_validacion_lote_revisada.csv --output data/referencias/usuarios/prueba_2026-10-14/09_extraer_perfiles_preparado.sql
+```
+
+**5. En el equipo institucional:** copia el SQL 09 preparado, ejecútalo completo una vez en SSMS y guarda la única cuadrícula con encabezados como `09_perfiles_lote.csv`. Copia el CSV de vuelta a `data/referencias/usuarios/prueba_2026-10-14/`. No abras y vuelvas a guardar este archivo en Excel: contiene JSON que debe conservarse completo. Si aparece JSON cortado o no válido, hay que corregir la exportación antes de importar.
+
+**6. En desarrollo: importar, revisar y publicar.**
+
+```bash
+.venv/bin/python -m alma_libcal import-users data/referencias/usuarios/prueba_2026-10-14/09_perfiles_lote.csv --review data/referencias/usuarios/prueba_2026-10-14/08_validacion_lote_revisada.csv
+.venv/bin/python -m alma_libcal publish --only prestamos
+.venv/bin/python -m alma_libcal publish --only renovaciones
+.venv/bin/python -m alma_libcal publish --only reservas
+.venv/bin/python -m alma_libcal status
+```
+
+Entre importar y publicar, revisa los CSV actualizados de `data/reportes/`, especialmente `usuarios_revision.csv`. Puedes publicar antes del cruce para inspeccionar las operaciones: los nuevos usuarios mostrarán `pending_review`, salvo las cuentas de servicios configuradas. Después de importar, vuelve a publicar para incorporar los perfiles. No ejecutes nuevas extracciones entre preparar 08 e importar 09: si cambian las solicitudes, debes preparar el lote nuevamente. Los CSV preliminares de esta prueba están en `data/reportes/prueba_2026-10-14/`; son una copia anterior al nuevo cruce, no se actualizan automáticamente.
+
+En esta prueba, los tres reportes juntos superan el límite local de 1,8 MB: por eso se publican uno por uno. Cada pestaña conserva su reemplazo atómico; las tres publicaciones separadas no forman una única transacción. Si una pestaña falla, consulta `status` y reintenta solo esa. Si un reporte individual supera el límite, habrá que ampliar el publicador antes de continuar; no borres el histórico para hacerlo caber.
 
 Las consultas `00`–`07` de `sql/institutional/` sirven para investigar excepciones; no se repiten para cada extracción. Los SQL preparados y CSV personales se guardan exclusivamente bajo `data/`, excluido de Git.
+
+### Opciones para reducir el paso manual
+
+Por ahora, **SSMS y dos intercambios de archivos** permiten validar el flujo sin instalar Python ni WSL en el equipo institucional. La siguiente opción es un script de **PowerShell** en ese equipo: ejecutaría el SQL y exportaría CSV usando la sesión de Windows autorizada. Requerirá confirmar servidor, base de datos, herramientas disponibles y exportación sin truncar el JSON; no necesitas compartir contraseñas. El módulo oficial [SqlServer e Invoke-Sqlcmd](https://learn.microsoft.com/en-us/powershell/module/sqlserver/invoke-sqlcmd) es una alternativa para implementarlo. El script aún no existe.
+
+Después podría ejecutarse con el Programador de tareas de Windows, bajo una cuenta con acceso autorizado y con VPN disponible. Automatizar la exportación no resuelve por sí solo la revisión de identidades ni el traslado de archivos: ambos deben definirse antes de programar el flujo completo. La conexión directa desde un proceso con acceso a la red institucional sería una tercera opción, cuando ese acceso esté disponible.
 
 ## Histórico de LibCal y próximos pasos
 
