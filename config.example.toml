@@ -302,7 +302,7 @@ include_date_parts = true # false: omitir mes/número de mes/hora; conservar fec
 "-" = "-"
 "no" = "No"
 
-# Período vigente confirmado únicamente para estas fechas del piloto.
+# Referencia de período para programación docente; no limita la selección académica por última matrícula.
 [institutional.university_period_by_date]
 "2026-10-06" = "202620"
 "2026-10-07" = "202620"

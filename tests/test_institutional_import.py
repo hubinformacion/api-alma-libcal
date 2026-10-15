@@ -37,19 +37,23 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(result['user_name'], '')
         self.assertEqual(result['user_full_name'], 'NOMBRE COMPLETO SIN COMAS')
 
-    def test_future_enrollment_and_period_do_not_replace_current(self):
+    def test_future_enrollment_and_snapshot_do_not_replace_historical_profile(self):
         self.evidence['uc_enrollment'] = [self.enrollment,
-            dict(self.enrollment, period_name='202710', program_name='Futuro'),
+            dict(self.enrollment, period_name='202710', enrollment_date='2027-01-01', program_name='Futuro'),
             dict(self.enrollment, source_activity_date='2026-10-10', program_name='Futuro')]
         self.assertEqual(self.resolve()['fields']['user_program'], 'Carrera A')
 
-    def test_no_confirmed_period_and_conflicting_status_remain_pending(self):
-        self.evidence['uc_enrollment'] = [self.enrollment]
+    def test_old_enrollment_without_calendar_defaults_to_student_and_keeps_source_status(self):
+        self.evidence['uc_enrollment'] = [dict(self.enrollment, period_name='201820',
+            enrollment_date='2018-08-04', source_activity_date='2018-08-04',
+            source_status_name='NO MATRICULADO', enrolled_credits=0)]
         self.settings = {}
-        self.assertEqual(self.resolve()['fields']['user_match_status'], 'pending_review')
-        self.settings = {'university_period_by_date': {'2026-10-06': '202620'}}
-        self.evidence['uc_enrollment'].append(dict(self.enrollment, source_status_name='NO MATRICULADO'))
-        self.assertEqual(self.resolve()['fields']['user_match_status'], 'pending_review')
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_match_status'], 'matched_profile')
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['academic_selection']['date'], '2018-08-04')
+        self.assertEqual(result['academic_selection']['classification_basis'], ['student_without_dated_graduation'])
+        self.assertEqual(result['academic_evidence'][0]['original_status'], 'NO MATRICULADO')
 
     def test_two_current_careers_keep_common_campus_and_do_not_choose_program(self):
         self.evidence['uc_enrollment'] = [self.enrollment,
@@ -60,24 +64,25 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(fields['user_program'], '')
         self.assertEqual(fields['user_match_status'], 'partial_profile')
 
-    def test_newer_continua_is_not_inferred_from_funnel_status(self):
+    def test_commercial_continua_profile_alone_does_not_replace_real_enrollment(self):
         self.evidence['uc_enrollment'] = [self.enrollment]
         self.evidence['edc_profile'] = [dict(source_start_date='2026-09-01',
                                           source_funnel_status='MATRICULADO')]
         result = self.resolve()
-        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
-        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_match_status'], 'matched_profile')
         self.assertEqual(result['fields']['user_program'], 'Carrera A')
 
-    def test_institute_is_scoped_and_requires_dated_enrollment(self):
+    def test_institute_is_scoped_and_uses_section_start_as_explicit_reference(self):
         self.context['account_scope'] = 'institute'
         self.evidence['uc_enrollment'] = [self.enrollment]
         self.assertEqual(self.resolve()['fields']['user_type'], '')
-        self.evidence['ic_enrollment'] = [dict(source_status_id=4, section_start='2026-08-01',
-                                              section_end='2026-12-01', program_name='IC')]
-        self.assertEqual(self.resolve()['fields']['user_type'], 'Estudiante')
-        self.assertEqual(self.resolve()['fields']['user_business_unit'], 'Instituto Continental')
-        self.evidence['ic_enrollment'][0]['section_end'] = 'invalid'
+        self.evidence['ic_enrollment'] = [dict(source_status_id=4, section_start='2020-08-01',
+                                              section_end='2020-12-01', program_name='IC')]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_business_unit'], 'Instituto Continental')
+        self.assertEqual(result['academic_selection']['date_basis'], ['section_start_reference'])
+        self.evidence['ic_enrollment'][0]['section_start'] = 'invalid'
         self.assertEqual(self.resolve()['fields']['user_type'], '')
 
     def test_teacher_precedes_admin_but_old_teacher_is_not_current(self):
@@ -128,7 +133,7 @@ class ProfileResolutionTests(unittest.TestCase):
             self.assertEqual(record.user_program, 'Programa')
 
     def test_formal_graduation_is_required_for_egresado(self):
-        self.evidence['uc_student'] = [dict(source_status='ESTUDIANTES')]
+        self.evidence['uc_student'] = [dict(student_id=5, program_id=1, source_status='ESTUDIANTES')]
         self.assertEqual(self.resolve()['fields']['user_type'], '')
         self.evidence['uc_student'][0]['graduation_date'] = '2020-12-01'
         self.assertEqual(self.resolve()['fields']['user_type'], 'Egresado')
@@ -147,13 +152,13 @@ class ProfileResolutionTests(unittest.TestCase):
                  source_activity_date='2020-12-01', source_status_name='ESTUDIOS CONCLUIDOS',
                  enrollment_status_name='ESTUDIOS CONCLUIDOS', enrolled_credits=None)]
         before = self.resolve()
-        self.assertEqual(before['fields']['user_type'], '')
-        self.assertEqual(before['fields']['user_match_status'], 'pending_review')
+        self.assertEqual(before['fields']['user_type'], 'Estudiante')
+        self.assertEqual(before['fields']['user_match_status'], 'matched_profile')
         self.context['activity_date'] = '2021-01-02'
         after = self.resolve()
         self.assertEqual(after['fields']['user_type'], 'Egresado')
-        self.assertEqual(after['academic_selection']['date'], '2020-12-01')
-        self.assertTrue(all(p['status_date'] == '2021-01-01' for p in after['academic_evidence']))
+        self.assertEqual(after['academic_selection']['date'], '2020-03-08')
+        self.assertTrue(all(p['status_date'] == '2021-01-01' for p in after['academic_evidence'] if p['source'] == 'uc_student'))
         self.assertEqual(self.evidence['uc_enrollment'][0]['enrollment_date'], '2020-03-08')
 
     def graduate_university(self):
@@ -173,19 +178,23 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(result['fields']['user_modality'], 'Presencial')
         self.assertTrue(any(r['original_status'] == 'BACHILLER' for r in result['academic_evidence']))
 
-    def test_late_titling_does_not_outrank_newer_continua(self):
+    def test_newer_continua_enrollment_defaults_to_student_without_borrowing_old_degree(self):
         self.graduate_university()
         self.evidence['uc_student'][0]['title_date'] = '2026-09-01'
-        self.evidence['edc_enrollment'] = [dict(enrollment_date='2025-01-01', source_active_status=1)]
-        self.evidence['edc_profile'] = [dict(source_start_date='2025-01-01',
-            source_emission_date='2025-12-01', source_funnel_status='MATRICULADO')]
+        self.evidence['edc_enrollment'] = [dict(student_id=9, program_id=20, period_id=9,
+            enrollment_date='2025-06-25', program_name='Curso reciente', campus_id=2)]
+        self.evidence['edc_profile'] = [dict(program_id=20, period_id=9, campus_id=2,
+            campus_name='Campus B', modality_name='Virtual', source_start_date='2025-05-08',
+            source_emission_date='2025-06-25', source_funnel_status='MATRICULADO')]
         result = self.resolve()
-        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
-        self.assertEqual(result['fields']['user_type'], 'Egresado')
-        self.assertEqual(result['fields']['user_program'], 'Carrera A')
-        self.assertEqual(result['academic_selection']['date'], '2020-12-01')
-        self.assertTrue(result['academic_selection']['later_study_unresolved'])
-        self.assertIn('newer_academic_study_requires_validation', result['reasons'])
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_program'], 'Curso reciente')
+        self.assertEqual(result['fields']['user_campus'], 'Campus B')
+        self.assertEqual(result['fields']['user_modality'], 'Virtual')
+        self.assertEqual(result['fields']['user_department'], '')
+        self.assertEqual(result['academic_selection']['date'], '2025-06-25')
+        self.assertEqual(result['academic_selection']['sources'], ['edc'])
+        self.assertNotIn('uc_student', {p['source'] for p in result.get('academic_evidence', [])})
 
     def test_newer_undated_psg_requires_review_and_future_only_study_does_not(self):
         self.graduate_university()
@@ -198,11 +207,11 @@ class ProfileResolutionTests(unittest.TestCase):
     def test_other_career_after_graduation_does_not_inherit_egresado(self):
         self.graduate_university()
         self.evidence['uc_enrollment'].append(dict(self.enrollment, period_name='202510',
-            student_id=6, program_id=2, enrollment_date='2025-03-01', source_activity_date='2025-03-01'))
+            student_id=6, program_id=2, program_name='Carrera B', enrollment_date='2025-03-01', source_activity_date='2025-03-01'))
         result = self.resolve()
-        self.assertEqual(result['fields']['user_type'], 'Egresado')
-        self.assertEqual(result['fields']['user_program'], 'Carrera A')
-        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_program'], 'Carrera B')
+        self.assertEqual(result['fields']['user_match_status'], 'matched_profile')
 
     def test_equal_study_dates_do_not_use_titling_dates_to_choose_a_career(self):
         self.graduate_university()
@@ -217,7 +226,7 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(result['fields']['user_program'], '')
         self.assertEqual(result['fields']['user_campus'], 'Campus A')
 
-    def test_later_completion_wins_over_later_start_in_two_graduated_careers(self):
+    def test_latest_enrollment_wins_over_later_completion_in_two_graduated_careers(self):
         self.graduate_university()
         first = self.evidence['uc_student'][0]
         first.update(study_end='2025-12-01', graduation_date='2026-01-01')
@@ -227,11 +236,11 @@ class ProfileResolutionTests(unittest.TestCase):
             program_name='Carrera B', period_name='202210', enrollment_date='2022-01-01',
             source_activity_date='2022-01-01'))
         result = self.resolve()
-        self.assertEqual(result['fields']['user_program'], 'Carrera A')
-        self.assertEqual(result['academic_selection']['date'], '2025-12-01')
-        self.assertEqual(result['academic_selection']['date_basis'], ['study_end'])
+        self.assertEqual(result['fields']['user_program'], 'Carrera B')
+        self.assertEqual(result['academic_selection']['date'], '2022-01-01')
+        self.assertEqual(result['academic_selection']['date_basis'], ['enrollment_date'])
 
-    def test_unknown_completion_does_not_displace_known_program_end(self):
+    def test_unknown_completion_does_not_block_latest_enrolled_career(self):
         self.graduate_university()
         self.evidence['uc_student'].append(dict(student_id=6, program_id=2,
             study_start='2022-01-01', graduation_date='2026-01-01'))
@@ -239,9 +248,9 @@ class ProfileResolutionTests(unittest.TestCase):
             program_name='Carrera B', period_name='202210', enrollment_date='2022-01-01',
             source_activity_date='2022-01-01'))
         result = self.resolve()
-        self.assertEqual(result['fields']['user_program'], 'Carrera A')
-        self.assertTrue(result['academic_selection']['other_completion_dates_missing'])
-        self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
+        self.assertEqual(result['fields']['user_program'], 'Carrera B')
+        self.assertEqual(result['fields']['user_type'], 'Egresado')
+        self.assertEqual(result['fields']['user_match_status'], 'matched_profile')
 
     def institute_graduate(self):
         self.context['account_scope'] = 'institute'
@@ -258,23 +267,18 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(result['fields']['user_program'], 'Programa IC')
         self.assertEqual(result['fields']['user_campus'], '')
         self.assertEqual(result['fields']['user_match_status'], 'partial_profile')
-        self.assertEqual(result['academic_evidence'][0]['original_status'], '1')
+        self.assertTrue(any(p['source'] == 'ic_graduation' and p['original_status'] == '1' for p in result['academic_evidence']))
 
-    def test_late_ic_certificate_is_not_evidence_of_a_more_recent_study(self):
+    def test_late_ic_certificate_does_not_displace_newer_program_without_graduation(self):
         self.institute_graduate()
         self.evidence['ic_graduation'][0]['source_graduation_certificate_date'] = '2026-09-01'
-        self.evidence['ic_enrollment'].append(dict(program_id=2, student_id=4,
+        self.evidence['ic_enrollment'].append(dict(program_id=2, student_id=4, program_name='Nuevo IC',
             source_status_id=4, section_start='2025-01-01', section_end='2025-06-01'))
         result = self.resolve()
-        self.assertEqual(result['fields']['user_type'], 'Egresado')
-        self.assertEqual(result['fields']['user_program'], 'Programa IC')
-        self.assertEqual(result['academic_selection']['date'], '2021-08-01')
-        self.assertTrue(result['academic_selection']['later_study_unresolved'])
-        self.evidence['ic_enrollment'] = self.evidence['ic_enrollment'][1:]
-        result = self.resolve()
-        self.assertEqual(result['fields']['user_type'], 'Egresado')
-        self.assertEqual(result['academic_selection']['date'], '')
-        self.assertIn('completion_date_not_available', result['reasons'])
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_program'], 'Nuevo IC')
+        self.assertEqual(result['academic_selection']['date'], '2025-01-01')
+        self.assertNotIn('ic_graduation', {p['source'] for p in result.get('academic_evidence', [])})
 
     def test_ic_certificate_requires_confirmed_status_and_historical_date(self):
         self.institute_graduate()
@@ -282,7 +286,7 @@ class ProfileResolutionTests(unittest.TestCase):
         for status, issued in [(0, '2021-11-05'), (1, '2027-11-05'), (1, ''), (1, 'bad-date')]:
             certificate.update(source_graduation_certificate_status=status,
                                source_graduation_certificate_date=issued)
-            self.assertEqual(self.resolve()['fields']['user_type'], '')
+            self.assertEqual(self.resolve()['fields']['user_type'], 'Estudiante')
 
     def test_current_ic_enrollment_precedes_old_graduation(self):
         self.institute_graduate()
@@ -292,9 +296,63 @@ class ProfileResolutionTests(unittest.TestCase):
         self.assertEqual(self.resolve()['fields']['user_program'], 'Nuevo IC')
         self.evidence['ic_enrollment'][-1]['section_end'] = '2026-10-01'
         result = self.resolve()
-        self.assertEqual(result['fields']['user_type'], 'Egresado')
-        self.assertEqual(result['fields']['user_program'], 'Programa IC')
-        self.assertIn('institute_newer_study_requires_validation', result['reasons'])
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['fields']['user_program'], 'Nuevo IC')
+        self.assertEqual(result['academic_selection']['date'], '2026-09-01')
+
+    def test_psg_enrollment_is_separate_from_uc_even_with_same_program_number(self):
+        self.graduate_university()
+        self.evidence['psg_enrollment'] = [dict(self.enrollment, enrollment_date='2023-04-01',
+            source_activity_date='2023-04-01', program_name='Maestría', study_end='2024-12-01')]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_program'], 'Maestría')
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['academic_selection']['sources'], ['psg'])
+
+    def test_emission_and_planned_end_do_not_graduate_continua(self):
+        self.evidence['edc_enrollment'] = [dict(program_id=10, enrollment_date='2023-03-01',
+            program_name='Curso', study_end='2023-06-01', source_active_status=0)]
+        self.evidence['edc_profile'] = [dict(program_id=10, source_start_date='2023-03-01',
+            source_emission_date='2023-07-01', source_funnel_status='FINALIZADO')]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['academic_selection']['classification_basis'], ['student_without_dated_graduation'])
+
+    def test_same_program_reenrollment_does_not_inherit_earlier_graduation(self):
+        self.graduate_university()
+        self.evidence['uc_enrollment'][-1]['source_activity_date'] = '2022-01-01'
+        self.evidence['uc_enrollment'].append(dict(self.enrollment, enrollment_date='2023-03-01',
+            source_activity_date='2023-03-01'))
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], 'Estudiante')
+        self.assertEqual(result['academic_selection']['date'], '2023-03-01')
+
+    def test_equal_last_enrollments_with_different_types_remain_ambiguous(self):
+        self.graduate_university()
+        self.evidence['psg_enrollment'] = [dict(self.enrollment, program_name='Maestría',
+            enrollment_date='2020-03-01', source_activity_date='2020-03-01')]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_type'], '')
+        self.assertEqual(result['fields']['user_match_status'], 'pending_review')
+        self.assertIn('academic_type_ambiguous', result['reasons'])
+        self.assertEqual(result['academic_selection']['sources'], ['psg', 'uc'])
+
+    def test_continua_metadata_does_not_cross_program_period_or_campus(self):
+        self.evidence['edc_enrollment'] = [dict(program_id=10, period_id=1, campus_id=2,
+            enrollment_date='2023-03-01', program_name='Curso')]
+        self.evidence['edc_profile'] = [dict(program_id=p, period_id=t, campus_id=c,
+            source_start_date='2023-02-01', modality_name='Incorrecta', campus_name='Ajeno')
+            for p, t, c in [(11, 1, 2), (10, 2, 2), (10, 1, 3)]]
+        result = self.resolve()
+        self.assertEqual(result['fields']['user_modality'], '')
+        self.assertEqual(result['fields']['user_campus'], '')
+        self.assertEqual(result['fields']['user_program'], 'Curso')
+
+    def test_snapshot_and_profile_without_dated_enrollment_do_not_create_student(self):
+        self.evidence['uc_student'] = [dict(program_id=1, source_status='ESTUDIANTES')]
+        self.evidence['edc_profile'] = [dict(program_id=10, source_start_date='2023-03-01',
+            source_funnel_status='MATRICULADO')]
+        self.assertEqual(self.resolve()['fields']['user_type'], '')
 
     def test_tm_identifier_remains_alphanumeric(self):
         self.evidence['identity'][0]['source_identifier'] = 'TM000123'
@@ -351,16 +409,20 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM institutional_profile_versions').fetchone()[0], 2)
         self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM record_versions').fetchone()[0], 1)
 
-    def test_graduation_audit_identifies_completion_date_and_keeps_raw_operations(self):
+    def test_graduation_audit_identifies_last_enrollment_and_keeps_raw_operations(self):
         self.rows.append(dict(self.identity, profile_source='uc_student', profile_data=json.dumps(
-            dict(person_id=1, student_id=5, program_id=1, study_end='2020-12-01',
-                 graduation_date='2021-01-01'))))
+            dict(person_id=1, student_id=5, program_id=1, study_end='2020-12-01', graduation_date='2021-01-01'))))
+        self.rows.append(dict(self.identity, profile_source='uc_enrollment', profile_data=json.dumps(
+            dict(person_id=1, student_id=5, program_id=1, enrollment_date='2020-03-01',
+                 source_activity_date='2020-03-01'))))
         self.run_import()
         with (self.root / 'reports/usuarios_revision.csv').open(encoding='utf-8-sig', newline='') as handle:
             row = next(csv.DictReader(handle))
-        self.assertEqual(row['selected_academic_date'], '2020-12-01')
-        self.assertEqual(row['selected_academic_date_basis'], 'study_end')
-        self.assertEqual(row['academic_selection_policy'], 'latest_known_completion')
+        self.assertEqual(row['selected_academic_date'], '2020-03-01')
+        self.assertEqual(row['selected_academic_date_basis'], 'enrollment_date')
+        self.assertEqual(row['academic_selection_policy'], 'latest_enrollment')
+        self.assertEqual(row['academic_sources'], 'uc')
+        self.assertEqual(row['academic_classification_basis'], 'dated_graduation')
         self.assertEqual(self.store.records('prestamos')[0].user_type, '')
         self.assertEqual(self.run_import()['changed_profiles'], 0)
 
